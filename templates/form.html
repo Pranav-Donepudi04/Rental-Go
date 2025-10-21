@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Basic Form</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2rem; }
+        .card { max-width: 480px; padding: 1.5rem; border: 1px solid #ddd; border-radius: 8px; }
+        label { display: block; margin-top: 1rem; font-weight: 600; }
+        input, textarea { width: 100%; padding: 0.5rem; margin-top: 0.25rem; }
+        button { margin-top: 1rem; padding: 0.6rem 1rem; cursor: pointer; }
+        textarea { resize: vertical; min-height: 80px; }
+    </style>
+    </head>
+<body>
+    <div class="card">
+        <h2>Enter your details</h2>
+        <form method="POST" action="/submit">
+            <label for="name">Name</label>
+            <input id="name" name="name" type="text" required />
+
+            <label for="email">Email</label>
+            <input id="email" name="email" type="email" required />
+
+            <label for="age">Age</label>
+            <input id="age" name="age" type="number" min="18" max="120" required />
+
+            <label for="phone">Phone Number</label>
+            <input id="phone" name="phone" type="tel" required />
+
+            <label for="website">Website (optional)</label>
+            <input id="website" name="website" type="url" />
+
+            <label for="message">Message</label>
+            <textarea id="message" name="message" maxlength="500" placeholder="Tell us about yourself..."></textarea>
+
+            <button type="submit">Submit</button>
+        </form>
+    </div>
+</body>
+</html>
+
+
