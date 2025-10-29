@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Unit.UnitCode}} - Unit Details</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .header h1 {
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        .back-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            font-size: 1em;
+        }
+
+        .back-btn:hover {
+            background: #2980b9;
+        }
+
+        .content-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .card h2 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+            font-size: 1.8em;
+        }
+
+        .unit-info {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .unit-info h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 10px;
+            padding: 8px 0;
+            border-bottom: 1px solid #eee;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            font-weight: bold;
+            color: #555;
+        }
+
+        .info-value {
+            color: #2c3e50;
+        }
+
+        .status-badge {
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+
+        .status-available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-occupied {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .tenant-info {
+            background: #e8f5e8;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+
+        .tenant-info h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.5em;
+        }
+
+        .payment-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin: 10px 0;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 4px solid #f39c12;
+        }
+
+        .payment-item.paid {
+            border-left-color: #27ae60;
+        }
+
+        .payment-item.overdue {
+            border-left-color: #e74c3c;
+        }
+
+        .payment-info h4 {
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .payment-info p {
+            color: #7f8c8d;
+            font-size: 0.9em;
+        }
+
+        .payment-amount {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn:hover {
+            background: #2980b9;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+        }
+
+        .btn-danger:hover {
+            background: #c0392b;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #7f8c8d;
+            font-style: italic;
+            padding: 40px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            color: #2c3e50;
+            font-weight: bold;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 1em;
+        }
+
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        @media (max-width: 768px) {
+            .content-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Back Button -->
+        <a href="/dashboard" class="back-btn">← Back to Dashboard</a>
+
+        <!-- Header -->
+        <div class="header">
+            <h1>🏠 {{.Unit.UnitCode}} - {{.Unit.UnitType}}</h1>
+            <p>Unit Details & Management</p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="content-grid">
+            <!-- Unit Information -->
+            <div class="card">
+                <h2>Unit Information</h2>
+                <div class="unit-info">
+                    <h3>{{.Unit.UnitCode}} - {{.Unit.UnitType}}</h3>
+                    <div class="info-row">
+                        <span class="info-label">Floor:</span>
+                        <span class="info-value">{{.Unit.Floor}}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Monthly Rent:</span>
+                        <span class="info-value">₹{{.Unit.MonthlyRent}}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Payment Due:</span>
+                        <span class="info-value">{{.Unit.PaymentDueDay}}th of every month</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Status:</span>
+                        <span class="status-badge {{if .Unit.IsOccupied}}status-occupied{{else}}status-available{{end}}">
+                            {{if .Unit.IsOccupied}}Occupied{{else}}Available{{end}}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tenant Information -->
+            <div class="card">
+                <h2>Tenant Information</h2>
+                {{if .Tenant}}
+                <div class="tenant-info">
+                    <h3>{{.Tenant.Name}}</h3>
+                    <div class="info-row">
+                        <span class="info-label">Phone:</span>
+                        <span class="info-value">{{.Tenant.Phone}}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Aadhar:</span>
+                        <span class="info-value">{{.Tenant.AadharNumber}}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Move-in Date:</span>
+                        <span class="info-value">{{.Tenant.MoveInDate.Format "January 2, 2006"}}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Number of People:</span>
+                        <span class="info-value">{{.Tenant.NumberOfPeople}}</span>
+                    </div>
+                    <div class="info-row">
+                        <span class="info-label">Duration:</span>
+                        <span class="info-value">{{.Tenant.GetMoveInDuration}}</span>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 20px;">
+                    <button class="btn btn-danger" onclick="vacateTenant({{.Tenant.ID}}, '{{.Tenant.Name}}')">
+                        Vacate Tenant
+                    </button>
+                </div>
+                {{else}}
+                <div class="empty-state">
+                    <p>This unit is currently available for rent.</p>
+                    <button class="btn" onclick="openModal('addTenantModal')" style="margin-top: 15px;">Add New Tenant</button>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Payment History -->
+        {{if .Tenant}}
+        <div class="card">
+            <h2>Payment History</h2>
+            {{if .Payments}}
+                {{range .Payments}}
+                <div class="payment-item {{if .IsPaid}}paid{{else if .GetDaysOverdue}}overdue{{end}}">
+                    <div class="payment-info">
+                        <h4>Payment #{{.ID}}</h4>
+                        <p>Due: {{.GetFormattedDueDate}} | Status: {{.GetStatus}}</p>
+                        {{if .IsPaid}}
+                        <p>Paid: {{.GetFormattedPaymentDate}}</p>
+                        {{end}}
+                        {{if .Notes}}
+                        <p>Notes: {{.Notes}}</p>
+                        {{end}}
+                    </div>
+                    <div class="payment-amount">{{.GetFormattedAmount}}</div>
+                </div>
+                {{end}}
+            {{else}}
+                <div class="empty-state">
+                    <p>No payment history available for this tenant.</p>
+                </div>
+            {{end}}
+        </div>
+        {{end}}
+    </div>
+
+    <script>
+        // Vacate tenant function
+        function vacateTenant(tenantId, tenantName) {
+            if (confirm(`Are you sure you want to vacate ${tenantName}? This will remove the tenant and free up the unit.`)) {
+                const vacateData = {
+                    tenant_id: tenantId
+                };
+
+                fetch('/api/tenants/vacate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(vacateData)
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(`${tenantName} vacated successfully!`);
+                        window.location.href = '/dashboard';
+                    } else {
+                        alert('Error: ' + (data.error || data.message));
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
+            }
+        }
+
+        // Modal functions
+        function openModal(modalId) {
+            document.getElementById(modalId).style.display = 'block';
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modals = document.getElementsByClassName('modal');
+            for (let modal of modals) {
+                if (event.target == modal) {
+                    modal.style.display = 'none';
+                }
+            }
+        }
+
+        // Add tenant form submission
+        function handleAddTenant(e) {
+            e.preventDefault();
+            console.log('Form submitted!');
+            
+            const form = document.getElementById('addTenantForm');
+            const formData = new FormData(form);
+            const tenantData = {
+                name: formData.get('name'),
+                phone: formData.get('phone'),
+                aadhar_number: formData.get('aadhar'),
+                unit_id: {{.Unit.ID}}, // Use the current unit ID
+                number_of_people: parseInt(formData.get('people')),
+                move_in_date: formData.get('moveInDate')
+            };
+
+            console.log('Sending tenant data:', tenantData);
+
+            fetch('/api/tenants', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(tenantData)
+            })
+            .then(response => {
+                console.log('Response status:', response.status);
+                return response.json();
+            })
+            .then(result => {
+                console.log('Response result:', result);
+                if (result.success) {
+                    alert('Tenant added successfully!');
+                    closeModal('addTenantModal');
+                    location.reload(); // Reload to show the new tenant
+                } else {
+                    alert('Error: ' + (result.error || result.message));
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Error: ' + error.message);
+            });
+        }
+
+        // Attach event listener when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('addTenantForm');
+            if (form) {
+                form.addEventListener('submit', handleAddTenant);
+            }
+        });
+
+        // Set today's date as default for move-in date
+        document.getElementById('moveInDate').value = new Date().toISOString().split('T')[0];
+    </script>
+
+    <!-- Add Tenant Modal -->
+    <div id="addTenantModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addTenantModal')">&times;</span>
+            <h2>Add New Tenant</h2>
+            <form id="addTenantForm" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="name">Name:</label>
+                    <input type="text" id="name" name="name" required>
+                </div>
+                <div class="form-group">
+                    <label for="phone">Phone:</label>
+                    <input type="tel" id="phone" name="phone" required>
+                </div>
+                <div class="form-group">
+                    <label for="aadhar">Aadhar Number:</label>
+                    <input type="text" id="aadhar" name="aadhar" required>
+                </div>
+                <div class="form-group">
+                    <label for="people">Number of People:</label>
+                    <input type="number" id="people" name="people" min="1" required>
+                </div>
+                <div class="form-group">
+                    <label for="moveInDate">Move-in Date:</label>
+                    <input type="date" id="moveInDate" name="moveInDate" required>
+                </div>
+                <button type="submit" class="btn" onclick="handleAddTenant(event)">Add Tenant</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
