@@ -1,167 +1,95 @@
-# 🏗️ File Structure Restructuring Plan
+## Repository Restructuring Plan (Auth + Tenant/Owner Flows)
 
-## **Current Structure Issues:**
-- Models mixed with other files in `internal/models/`
-- Repository interfaces and implementations in same directory
-- Templates in root-level `templates/` directory
-- Documentation scattered in `cursor_rules/`
+This plan organizes the codebase for clarity and growth. Follow steps in order. Check off boxes as you complete them.
 
-## **Proposed New Structure:**
+### 1) Move postgres implementations (fix dir typo)
+- From: `internal/repository/postrgres/`
+- To:   `internal/repository/postgres/`
+- Update imports anywhere referencing `postrgres` → `postgres`.
 
-```
-backend-form/m/
-├── cmd/                          # Application entry points
-│   ├── server/
-│   │   └── main.go              # Main application server
-│   └── test/
-│       └── main.go              # Test utilities
-├── internal/                     # Private application code
-│   ├── config/                   # Configuration management
-│   │   ├── config.go            # Config struct and loading
-│   │   └── env.go               # Environment variable handling
-│   ├── domain/                   # Business entities (models)
-│   │   ├── unit.go              # Unit business entity
-│   │   ├── tenant.go            # Tenant business entity
-│   │   ├── family_member.go     # Family member entity
-│   │   └── payment.go           # Payment entity
-│   ├── repository/               # Data access layer
-│   │   ├── interfaces/          # Repository contracts (interfaces)
-│   │   │   ├── unit_repository.go
-│   │   │   ├── tenant_repository.go
-│   │   │   └── payment_repository.go
-│   │   └── postgres/            # PostgreSQL implementations
-│   │       ├── unit_repository.go
-│   │       ├── tenant_repository.go
-│   │       └── payment_repository.go
-│   ├── service/                  # Business logic layer
-│   │   ├── unit_service.go      # Unit business logic
-│   │   ├── tenant_service.go    # Tenant business logic
-│   │   └── payment_service.go   # Payment business logic
-│   └── handlers/                 # HTTP handlers (presentation layer)
-│       └── rental_handler.go    # Rental management HTTP handlers
-├── web/                          # Web assets and templates
-│   └── templates/
-│       ├── dashboard.html        # Main dashboard template
-│       └── unit-detail.html     # Unit detail template
-├── docs/                         # Documentation
-│   └── cursor_rules/
-│       ├── AI_ASSISTANT_RULES.md
-│       ├── CODE_FLOW_SUMMARY.md
-│       ├── CODING_RULES.md
-│       ├── plan.md
-│       ├── PROJECT_PREFERENCES.md
-│       └── RENTAL_MANAGEMENT_PRD.md
-├── greetings/                    # Example module (can be removed)
-│   ├── go.mod
-│   └── greetings.go
-├── go.mod
-└── go.sum
-```
-
-## **Benefits of New Structure:**
-
-### **1. Clear Separation of Concerns:**
-- **`domain/`** - Pure business entities, no dependencies
-- **`repository/interfaces/`** - Data access contracts
-- **`repository/postgres/`** - Database implementations
-- **`service/`** - Business logic orchestration
-- **`handlers/`** - HTTP request/response handling
-
-### **2. Better Dependency Flow:**
-```
-handlers → service → repository/interfaces → repository/postgres
-    ↓         ↓              ↓                    ↓
-  domain ← domain ← domain ← domain
-```
-
-### **3. Easier Navigation:**
-- **Domain entities** in one place
-- **Repository contracts** separated from implementations
-- **Web assets** in dedicated directory
-- **Documentation** organized
-
-### **4. Scalability:**
-- Easy to add new database implementations
-- Easy to add new handlers
-- Easy to add new business logic
-- Clear boundaries between layers
-
-## **Migration Steps:**
-
-### **Step 1: Create New Directories**
+Suggested commands:
 ```bash
-mkdir -p internal/domain
-mkdir -p internal/repository/interfaces
-mkdir -p internal/repository/postgres
-mkdir -p web/templates
-mkdir -p docs/cursor_rules
+git mv internal/repository/postrgres internal/repository/postgres
+rg -n "postrgres" | cut -d: -f1 | sort -u | xargs sed -i '' 's/postrgres/postgres/g'
 ```
 
-### **Step 2: Move Files**
+### 2) Introduce HTTP layer with router + middleware
+- Add `internal/http/router.go` that receives handlers and registers all routes.
+- Add `internal/http/middleware/auth.go` with:
+  - `LoadSession(next)` → attaches user to context if cookie present
+  - `RequireOwner(next)` → ensures owner
+  - `RequireTenant(next)` → ensures tenant
+
+Routes to register in `router.go`:
+- Public: `GET /login`, `POST /login`, `POST /logout`
+- Owner-only: `GET /dashboard`, `POST /api/payments/mark-paid`, admin CRUD
+- Tenant-only: `GET /me`, `POST /api/payments/submit`, `POST /api/me/change-password`
+
+### 3) Split handlers by responsibility
+- Keep existing logic but relocate:
+  - `internal/http/handlers/auth_handler.go`
+  - `internal/http/handlers/owner_handler.go` (dashboard, approve payment)
+  - `internal/http/handlers/tenant_handler.go` (/me, submit txn, change password)
+  - Keep `rental_handler.go` owner/admin-only; later split if needed.
+
+Checklist:
+- [ ] Create `internal/http/router.go`
+- [ ] Create `internal/http/middleware/auth.go`
+- [ ] Move/rename handlers into `internal/http/handlers`
+- [ ] Update imports and registrations
+
+### 4) Services: keep APIs; extract files for clarity
+- Files in `internal/service/`:
+  - `auth_service.go`
+  - `payment_service.go`
+  - `tenant_service.go`
+  - `unit_service.go`
+
+No behavioral changes expected—only file organization if needed.
+
+### 5) Templates re-organization
+- Move to folders:
+  - `templates/auth/login.html`
+  - `templates/owner/dashboard.html`
+  - `templates/owner/unit-detail.html`
+  - `templates/tenant/tenant-dashboard.html`
+
+Then update `ExecuteTemplate` calls accordingly (e.g., `owner/dashboard.html`).
+
+Checklist:
+- [ ] Create subfolders under `templates/`
+- [ ] Move files
+- [ ] Update handler render paths
+
+### 6) App bootstrap and main
+- Add `internal/app/bootstrap.go` that wires:
+  - config, DB, repositories, services, handlers, router
+- Keep `cmd/server/main.go` minimal: load config → bootstrap → start server
+
+Checklist:
+- [ ] Create `internal/app/bootstrap.go`
+- [ ] Refactor `cmd/server/main.go` to call bootstrap + start router
+
+### 7) Config polish
+- Add `COOKIE_NAME` (default `sid`) and optional `SESSION_TTL` to config/env.
+- Ensure handlers use injected cookie name.
+
+### 8) Build and smoke test
 ```bash
-# Move models to domain
-mv internal/models/* internal/domain/
+go build ./cmd/server
+```
+- Owner flow: login → dashboard → approve payment
+- Tenant flow: login → /me → submit TXN → change password
 
-# Move repository interfaces
-mv internal/repository/*_repository.go internal/repository/interfaces/
-
-# Move PostgreSQL implementations
-mv internal/repository/postgres_*_repository.go internal/repository/postgres/
-
-# Move templates
-mv templates/* web/templates/
-
-# Move documentation
-mv cursor_rules/* docs/cursor_rules/
+### 9) Git steps (suggested)
+```bash
+git checkout -b refactor/http-layer
+# perform steps 1–8 with small commits per step
+git push -u origin refactor/http-layer
 ```
 
-### **Step 3: Update Import Paths**
-- Update all import statements to reflect new paths
-- Update `go.mod` if needed
-- Update template parsing in `main.go`
+### Notes
+- Keep package names: `domain`, `interfaces`, `postgres` consistent.
+- Avoid changing public function signatures during the move.
+- Run `rg`/build after each step to catch import path issues early.
 
-### **Step 4: Clean Up**
-- Remove empty directories
-- Update documentation
-- Test the application
-
-## **Import Path Examples:**
-
-### **Before:**
-```go
-import "backend-form/m/internal/models"
-import "backend-form/m/internal/repository"
-```
-
-### **After:**
-```go
-import "backend-form/m/internal/domain"
-import "backend-form/m/internal/repository/interfaces"
-import "backend-form/m/internal/repository/postgres"
-```
-
-## **File Organization by Layer:**
-
-### **Domain Layer (Business Entities):**
-- `internal/domain/unit.go`
-- `internal/domain/tenant.go`
-- `internal/domain/family_member.go`
-- `internal/domain/payment.go`
-
-### **Repository Layer (Data Access):**
-- **Interfaces:** `internal/repository/interfaces/`
-- **Implementations:** `internal/repository/postgres/`
-
-### **Service Layer (Business Logic):**
-- `internal/service/unit_service.go`
-- `internal/service/tenant_service.go`
-- `internal/service/payment_service.go`
-
-### **Handler Layer (HTTP):**
-- `internal/handlers/rental_handler.go`
-
-### **Web Layer (Templates):**
-- `web/templates/dashboard.html`
-- `web/templates/unit-detail.html`
-
-This structure follows Go best practices and makes the application flow much clearer! 🚀
