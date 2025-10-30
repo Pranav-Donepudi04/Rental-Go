@@ -3,7 +3,7 @@ package main
 import (
 	"backend-form/m/internal/config"
 	"backend-form/m/internal/handlers"
-	"backend-form/m/internal/repository"
+	"backend-form/m/internal/repository/postgres"
 	"backend-form/m/internal/service"
 	"database/sql"
 	"fmt"
@@ -11,7 +11,6 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/backend-form/greetings"
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
@@ -26,11 +25,7 @@ func main() {
 	// Load configuration
 	config.LoadEnvFile()
 	cfg := config.Load()
-
-	// Use our custom greetings function
-	greeting := greetings.Hello("Surya pranav")
-	fmt.Println(greeting)
-
+	
 	// Print configuration
 	fmt.Printf("Server will start on port: %s\n", cfg.Port)
 	fmt.Printf("Log Level: %s\n", cfg.LogLevel)

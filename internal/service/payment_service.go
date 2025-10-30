@@ -1,21 +1,21 @@
 package service
 
 import (
-	"backend-form/m/internal/models"
-	"backend-form/m/internal/repository"
+	"backend-form/m/internal/domain"
+	interfaces "backend-form/m/internal/repository/interfaces"
 	"fmt"
 	"time"
 )
 
 // PaymentService handles payment-related business logic
 type PaymentService struct {
-	paymentRepo repository.PaymentRepository
-	tenantRepo  repository.TenantRepository
-	unitRepo    repository.UnitRepository
+	paymentRepo interfaces.PaymentRepository
+	tenantRepo  interfaces.TenantRepository
+	unitRepo    interfaces.UnitRepository
 }
 
 // NewPaymentService creates a new PaymentService
-func NewPaymentService(paymentRepo repository.PaymentRepository, tenantRepo repository.TenantRepository, unitRepo repository.UnitRepository) *PaymentService {
+func NewPaymentService(paymentRepo interfaces.PaymentRepository, tenantRepo interfaces.TenantRepository, unitRepo interfaces.UnitRepository) *PaymentService {
 	return &PaymentService{
 		paymentRepo: paymentRepo,
 		tenantRepo:  tenantRepo,
@@ -24,7 +24,7 @@ func NewPaymentService(paymentRepo repository.PaymentRepository, tenantRepo repo
 }
 
 // CreateMonthlyPayment creates a monthly payment record for a tenant
-func (s *PaymentService) CreateMonthlyPayment(tenantID int, month time.Month, year int) (*models.Payment, error) {
+func (s *PaymentService) CreateMonthlyPayment(tenantID int, month time.Month, year int) (*domain.Payment, error) {
 	// Get tenant and unit information
 	tenant, err := s.tenantRepo.GetTenantByID(tenantID)
 	if err != nil {
@@ -46,7 +46,7 @@ func (s *PaymentService) CreateMonthlyPayment(tenantID int, month time.Month, ye
 	}
 
 	// Create payment record
-	payment := &models.Payment{
+	payment := &domain.Payment{
 		TenantID:      tenantID,
 		UnitID:        tenant.UnitID,
 		Amount:        unit.MonthlyRent,
@@ -82,7 +82,7 @@ func (s *PaymentService) MarkPaymentAsPaid(paymentID int, paymentDate time.Time,
 }
 
 // GetPaymentByID returns a payment by ID with related data
-func (s *PaymentService) GetPaymentByID(id int) (*models.Payment, error) {
+func (s *PaymentService) GetPaymentByID(id int) (*domain.Payment, error) {
 	payment, err := s.paymentRepo.GetPaymentByID(id)
 	if err != nil {
 		return nil, err
@@ -107,18 +107,18 @@ func (s *PaymentService) GetPaymentByID(id int) (*models.Payment, error) {
 }
 
 // GetPaymentsByTenantID returns all payments for a tenant
-func (s *PaymentService) GetPaymentsByTenantID(tenantID int) ([]*models.Payment, error) {
+func (s *PaymentService) GetPaymentsByTenantID(tenantID int) ([]*domain.Payment, error) {
 	return s.paymentRepo.GetPaymentsByTenantID(tenantID)
 }
 
 // GetOverduePayments returns all overdue payments
-func (s *PaymentService) GetOverduePayments() ([]*models.Payment, error) {
+func (s *PaymentService) GetOverduePayments() ([]*domain.Payment, error) {
 	payments, err := s.paymentRepo.GetAllPayments()
 	if err != nil {
 		return nil, err
 	}
 
-	var overdue []*models.Payment
+	var overdue []*domain.Payment
 	now := time.Now()
 
 	for _, payment := range payments {
@@ -131,13 +131,13 @@ func (s *PaymentService) GetOverduePayments() ([]*models.Payment, error) {
 }
 
 // GetPendingPayments returns all pending payments
-func (s *PaymentService) GetPendingPayments() ([]*models.Payment, error) {
+func (s *PaymentService) GetPendingPayments() ([]*domain.Payment, error) {
 	payments, err := s.paymentRepo.GetAllPayments()
 	if err != nil {
 		return nil, err
 	}
 
-	var pending []*models.Payment
+	var pending []*domain.Payment
 	now := time.Now()
 
 	for _, payment := range payments {
@@ -220,6 +220,6 @@ func (ps *PaymentSummary) GetFormattedOverdueAmount() string {
 }
 
 // GetAllPayments returns all payments
-func (s *PaymentService) GetAllPayments() ([]*models.Payment, error) {
+func (s *PaymentService) GetAllPayments() ([]*domain.Payment, error) {
 	return s.paymentRepo.GetAllPayments()
 }

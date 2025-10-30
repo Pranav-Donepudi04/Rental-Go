@@ -1,21 +1,21 @@
 package service
 
 import (
-	"backend-form/m/internal/models"
-	"backend-form/m/internal/repository"
+	"backend-form/m/internal/domain"
+	interfaces "backend-form/m/internal/repository/interfaces"
 	"fmt"
 	"time"
 )
 
 // TenantService handles tenant-related business logic
 type TenantService struct {
-	tenantRepo  repository.TenantRepository
-	unitRepo    repository.UnitRepository
-	paymentRepo repository.PaymentRepository
+	tenantRepo  interfaces.TenantRepository
+	unitRepo    interfaces.UnitRepository
+	paymentRepo interfaces.PaymentRepository
 }
 
 // NewTenantService creates a new TenantService
-func NewTenantService(tenantRepo repository.TenantRepository, unitRepo repository.UnitRepository, paymentRepo repository.PaymentRepository) *TenantService {
+func NewTenantService(tenantRepo interfaces.TenantRepository, unitRepo interfaces.UnitRepository, paymentRepo interfaces.PaymentRepository) *TenantService {
 	return &TenantService{
 		tenantRepo:  tenantRepo,
 		unitRepo:    unitRepo,
@@ -24,7 +24,7 @@ func NewTenantService(tenantRepo repository.TenantRepository, unitRepo repositor
 }
 
 // CreateTenant creates a new tenant and updates unit occupancy
-func (s *TenantService) CreateTenant(tenant *models.Tenant) error {
+func (s *TenantService) CreateTenant(tenant *domain.Tenant) error {
 	// Validate tenant data
 	if err := tenant.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -56,7 +56,7 @@ func (s *TenantService) CreateTenant(tenant *models.Tenant) error {
 }
 
 // GetTenantByID returns a tenant by ID with related data
-func (s *TenantService) GetTenantByID(id int) (*models.Tenant, error) {
+func (s *TenantService) GetTenantByID(id int) (*domain.Tenant, error) {
 	tenant, err := s.tenantRepo.GetTenantByID(id)
 	if err != nil {
 		return nil, err
@@ -80,7 +80,7 @@ func (s *TenantService) GetTenantByID(id int) (*models.Tenant, error) {
 }
 
 // GetAllTenants returns all tenants with related data
-func (s *TenantService) GetAllTenants() ([]*models.Tenant, error) {
+func (s *TenantService) GetAllTenants() ([]*domain.Tenant, error) {
 	tenants, err := s.tenantRepo.GetAllTenants()
 	if err != nil {
 		return nil, err
@@ -100,7 +100,7 @@ func (s *TenantService) GetAllTenants() ([]*models.Tenant, error) {
 }
 
 // UpdateTenant updates tenant information
-func (s *TenantService) UpdateTenant(tenant *models.Tenant) error {
+func (s *TenantService) UpdateTenant(tenant *domain.Tenant) error {
 	if err := tenant.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -134,7 +134,7 @@ func (s *TenantService) MoveOutTenant(tenantID int) error {
 }
 
 // AddFamilyMember adds a family member to a tenant
-func (s *TenantService) AddFamilyMember(familyMember *models.FamilyMember) error {
+func (s *TenantService) AddFamilyMember(familyMember *domain.FamilyMember) error {
 	if err := familyMember.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -143,12 +143,12 @@ func (s *TenantService) AddFamilyMember(familyMember *models.FamilyMember) error
 }
 
 // GetFamilyMembersByTenantID returns family members for a tenant
-func (s *TenantService) GetFamilyMembersByTenantID(tenantID int) ([]*models.FamilyMember, error) {
+func (s *TenantService) GetFamilyMembersByTenantID(tenantID int) ([]*domain.FamilyMember, error) {
 	return s.tenantRepo.GetFamilyMembersByTenantID(tenantID)
 }
 
 // GetTenantsByUnitID returns tenants for a specific unit
-func (s *TenantService) GetTenantsByUnitID(unitID int) ([]*models.Tenant, error) {
+func (s *TenantService) GetTenantsByUnitID(unitID int) ([]*domain.Tenant, error) {
 	return s.tenantRepo.GetTenantsByUnitID(unitID)
 }
 

@@ -1,7 +1,7 @@
 package handlers
 
 import (
-	"backend-form/m/internal/models"
+	"backend-form/m/internal/domain"
 	"backend-form/m/internal/service"
 	"encoding/json"
 	"fmt"
@@ -148,7 +148,7 @@ func (h *RentalHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	newTenant := &models.Tenant{
+	newTenant := &domain.Tenant{
 		Name:           tenant.Name,
 		Phone:          tenant.Phone,
 		AadharNumber:   tenant.AadharNumber,
@@ -298,8 +298,8 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get tenant details if occupied
-	var tenant *models.Tenant
-	var payments []*models.Payment
+	var tenant *domain.Tenant
+	var payments []*domain.Payment
 	if unit.IsOccupied {
 		tenants, err := h.tenantService.GetTenantsByUnitID(unitID)
 		if err == nil && len(tenants) > 0 {
@@ -308,7 +308,7 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 			// Get payment history for this tenant
 			payments, err = h.paymentService.GetPaymentsByTenantID(tenant.ID)
 			if err != nil {
-				payments = []*models.Payment{} // Empty slice if error
+				payments = []*domain.Payment{} // Empty slice if error
 			}
 		}
 	}
@@ -327,7 +327,7 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper function to get payment status
-func getPaymentStatus(payment *models.Payment) string {
+func getPaymentStatus(payment *domain.Payment) string {
 	if payment.IsPaid {
 		return "Paid"
 	}

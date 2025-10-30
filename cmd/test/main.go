@@ -2,7 +2,7 @@ package main
 
 import (
 	"backend-form/m/internal/config"
-	"backend-form/m/internal/repository"
+	"backend-form/m/internal/repository/postgres"
 	"backend-form/m/internal/service"
 	"database/sql"
 	"fmt"

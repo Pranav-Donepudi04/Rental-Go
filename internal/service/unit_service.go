@@ -1,46 +1,46 @@
 package service
 
 import (
-	"backend-form/m/internal/models"
-	"backend-form/m/internal/repository"
+	"backend-form/m/internal/domain"
+	interfaces "backend-form/m/internal/repository/interfaces"
 	"fmt"
 )
 
 // UnitService handles unit-related business logic
 type UnitService struct {
-	unitRepo repository.UnitRepository
+	unitRepo interfaces.UnitRepository
 }
 
 // NewUnitService creates a new UnitService
-func NewUnitService(unitRepo repository.UnitRepository) *UnitService {
+func NewUnitService(unitRepo interfaces.UnitRepository) *UnitService {
 	return &UnitService{
 		unitRepo: unitRepo,
 	}
 }
 
 // GetAllUnits returns all units
-func (s *UnitService) GetAllUnits() ([]*models.Unit, error) {
+func (s *UnitService) GetAllUnits() ([]*domain.Unit, error) {
 	return s.unitRepo.GetAllUnits()
 }
 
 // GetUnitByID returns a unit by ID
-func (s *UnitService) GetUnitByID(id int) (*models.Unit, error) {
+func (s *UnitService) GetUnitByID(id int) (*domain.Unit, error) {
 	return s.unitRepo.GetUnitByID(id)
 }
 
 // GetUnitByCode returns a unit by unit code
-func (s *UnitService) GetUnitByCode(code string) (*models.Unit, error) {
+func (s *UnitService) GetUnitByCode(code string) (*domain.Unit, error) {
 	return s.unitRepo.GetUnitByCode(code)
 }
 
 // GetAvailableUnits returns units that are not occupied
-func (s *UnitService) GetAvailableUnits() ([]*models.Unit, error) {
+func (s *UnitService) GetAvailableUnits() ([]*domain.Unit, error) {
 	units, err := s.unitRepo.GetAllUnits()
 	if err != nil {
 		return nil, err
 	}
 
-	var available []*models.Unit
+	var available []*domain.Unit
 	for _, unit := range units {
 		if !unit.IsOccupied {
 			available = append(available, unit)
@@ -51,13 +51,13 @@ func (s *UnitService) GetAvailableUnits() ([]*models.Unit, error) {
 }
 
 // GetOccupiedUnits returns units that are occupied
-func (s *UnitService) GetOccupiedUnits() ([]*models.Unit, error) {
+func (s *UnitService) GetOccupiedUnits() ([]*domain.Unit, error) {
 	units, err := s.unitRepo.GetAllUnits()
 	if err != nil {
 		return nil, err
 	}
 
-	var occupied []*models.Unit
+	var occupied []*domain.Unit
 	for _, unit := range units {
 		if unit.IsOccupied {
 			occupied = append(occupied, unit)
@@ -73,13 +73,13 @@ func (s *UnitService) UpdateUnitOccupancy(unitID int, isOccupied bool) error {
 }
 
 // GetUnitsByFloor returns units grouped by floor
-func (s *UnitService) GetUnitsByFloor() (map[string][]*models.Unit, error) {
+func (s *UnitService) GetUnitsByFloor() (map[string][]*domain.Unit, error) {
 	units, err := s.unitRepo.GetAllUnits()
 	if err != nil {
 		return nil, err
 	}
 
-	floorMap := make(map[string][]*models.Unit)
+	floorMap := make(map[string][]*domain.Unit)
 	for _, unit := range units {
 		floorMap[unit.Floor] = append(floorMap[unit.Floor], unit)
 	}
