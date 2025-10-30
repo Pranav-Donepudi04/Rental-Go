@@ -456,7 +456,11 @@
             .then(result => {
                 console.log('Response result:', result);
                 if (result.success) {
-                    alert('Tenant added successfully!');
+                    if (result.temp_password) {
+                        alert('Tenant added successfully. Temporary password: ' + result.temp_password + '\nPlease share it with the tenant.');
+                    } else {
+                        alert('Tenant added successfully!');
+                    }
                     closeModal('addTenantModal');
                     location.reload(); // Reload to show the new tenant
                 } else {

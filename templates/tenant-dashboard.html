@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Rental</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh; color:#333;
+        }
+        .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
+        .header { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:space-between; }
+        .header h1 { color:#2c3e50; font-size: 1.8em; }
+        .header .sub { color:#7f8c8d; font-size: 0.95em; }
+        .content-grid { display:grid; grid-template-columns: 1fr; gap: 20px; }
+        .card { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .card h2 { color:#2c3e50; margin-bottom: 12px; font-size: 1.4em; }
+        .info { color:#7f8c8d; font-size: 0.95em; }
+        label { display:block; font-size: 13px; color: #555; margin-top: 8px; }
+        input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; margin-top: 6px; }
+        .btn { background:#3498db; color:#fff; padding:10px 16px; border:0; border-radius:8px; cursor:pointer; font-weight:600; }
+        .btn:hover { background:#2980b9; }
+        .list { list-style:none; }
+        .payment-item { display:flex; justify-content:space-between; align-items:center; padding:12px; margin:10px 0; background:#f8f9fa; border-radius:10px; border-left:4px solid #f39c12; }
+        .payment-item.paid { border-left-color:#27ae60; }
+        .payment-item.overdue { border-left-color:#e74c3c; }
+        .muted { color:#7f8c8d; font-size: 0.9em; }
+    </style>
+    </head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1>👋 Welcome, {{.Tenant.Name}}</h1>
+                <div class="sub">Unit: {{if .Tenant.Unit}}{{.Tenant.Unit.UnitCode}}{{else}}—{{end}} • Move-in: {{.Tenant.MoveInDate.Format "Jan 2, 2006"}}</div>
+            </div>
+            <div>
+                <form method="post" action="/logout"><button class="btn" type="submit">Logout</button></form>
+            </div>
+        </div>
+
+        <div class="content-grid">
+            <div class="card">
+                <h2>Payments</h2>
+                {{if .Payments}}
+                <ul class="list">
+                    {{range .Payments}}
+                    <li class="payment-item {{if .IsPaid}}paid{{else if eq .GetUserFacingStatus "Overdue"}}overdue{{end}}">
+                        <div>
+                            <div><strong>{{.GetFormattedAmount}}</strong> • {{.GetFormattedDueDate}}</div>
+                            <div class="muted">Status: {{.GetUserFacingStatus}} {{if .Notes}} ({{.Notes}}) {{end}}</div>
+                        </div>
+                    </li>
+                    {{end}}
+                </ul>
+                {{else}}
+                <div class="muted">No payments to show yet.</div>
+                {{end}}
+                <form id="txnForm" method="post" action="/api/payments/submit">
+                    <label>Enter UPI Transaction ID</label>
+                    <input name="txn_id" placeholder="e.g., 2349ABCD..." />
+                    <button class="btn" type="submit">Submit Payment</button>
+                </form>
+            </div>
+
+            <div class="card">
+                <h2>Family Members</h2>
+                <div class="muted">(CRUD coming soon)</div>
+            </div>
+
+            <div class="card">
+                <h2>Change Password</h2>
+                <form id="changePassForm" onsubmit="return submitChangePassword(event)">
+                    <label>Old Password</label>
+                    <input id="oldPass" type="password" required />
+                    <label>New Password</label>
+                    <input id="newPass" type="password" minlength="6" required />
+                    <button class="btn" type="submit">Update Password</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function submitChangePassword(e){
+        e.preventDefault();
+        const body = { old_password: document.getElementById('oldPass').value, new_password: document.getElementById('newPass').value };
+        fetch('/api/me/change-password', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
+        .then(r=>{ if(!r.ok) throw new Error('Failed'); return r.json(); })
+        .then(_=>{ alert('Password updated. Please use the new password next time.'); document.getElementById('changePassForm').reset(); })
+        .catch(_=> alert('Failed to update password.'));
+        return false;
+    }
+
+    // Intercept payment submit to avoid navigating to raw API endpoint
+    (function(){
+        const f = document.getElementById('txnForm');
+        if (!f) return;
+        f.addEventListener('submit', function(e){
+            e.preventDefault();
+            const btn = f.querySelector('button[type=submit]');
+            if (btn) btn.disabled = true;
+            const data = new URLSearchParams(new FormData(f));
+            fetch('/api/payments/submit', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: data.toString()
+            }).then(r=>{
+                if (r.status === 204) { alert('Transaction submitted for verification.'); location.reload(); return; }
+                return r.text().then(text => { throw new Error(text || 'Failed'); });
+            }).catch(err=>{
+                alert('Failed to submit: ' + err.message);
+                if (btn) btn.disabled = false;
+            });
+        });
+    })();
+    </script>
+</body>
+</html>
+
+

@@ -4,6 +4,7 @@ import (
 	"backend-form/m/internal/domain"
 	interfaces "backend-form/m/internal/repository/interfaces"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -222,4 +223,66 @@ func (ps *PaymentSummary) GetFormattedOverdueAmount() string {
 // GetAllPayments returns all payments
 func (s *PaymentService) GetAllPayments() ([]*domain.Payment, error) {
 	return s.paymentRepo.GetAllPayments()
+}
+
+// SubmitPaymentIntent appends the provided txn id to the current month's payment notes for a tenant.
+func (s *PaymentService) SubmitPaymentIntent(tenantID int, txnID string) error {
+	now := time.Now()
+	p, err := s.paymentRepo.GetPaymentByTenantAndMonth(tenantID, now.Month(), now.Year())
+	if err != nil {
+		return fmt.Errorf("fetch payment: %w", err)
+	}
+	if p == nil {
+		// Create a payment record for the current month if it doesn't exist
+		tenant, err := s.tenantRepo.GetTenantByID(tenantID)
+		if err != nil {
+			return fmt.Errorf("fetch tenant: %w", err)
+		}
+		if tenant == nil {
+			return fmt.Errorf("tenant not found")
+		}
+
+		// Get unit information for monthly rent
+		unit, err := s.unitRepo.GetUnitByID(tenant.UnitID)
+		if err != nil {
+			return fmt.Errorf("fetch unit: %w", err)
+		}
+		if unit == nil {
+			return fmt.Errorf("unit not found")
+		}
+
+		// Create payment for current month
+		dueDate := time.Date(now.Year(), now.Month(), unit.PaymentDueDay, 0, 0, 0, 0, time.UTC)
+		payment := &domain.Payment{
+			TenantID:      tenantID,
+			UnitID:        tenant.UnitID,
+			Amount:        unit.MonthlyRent,
+			DueDate:       dueDate,
+			IsPaid:        false,
+			PaymentMethod: "UPI",
+			Notes:         "",
+		}
+
+		if err := s.paymentRepo.CreatePayment(payment); err != nil {
+			return fmt.Errorf("create payment: %w", err)
+		}
+		p = payment
+	}
+	// avoid duplicate appends of the same txn id
+	marker := "TXN:" + txnID
+	if p.Notes != "" && (p.Notes == marker || containsTxn(p.Notes, marker)) {
+		return nil
+	}
+	if p.Notes == "" {
+		p.Notes = marker
+	} else {
+		p.Notes = p.Notes + "; " + marker
+	}
+	return s.paymentRepo.UpdatePayment(p)
+}
+
+// containsTxn checks if notes already contains the exact marker token boundary-separated by ';'
+func containsTxn(notes, marker string) bool {
+	// simple contains is sufficient given our consistent formatting with '; ' delimiter
+	return strings.Contains(notes, marker)
 }

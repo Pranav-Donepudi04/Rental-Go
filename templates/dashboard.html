@@ -287,7 +287,22 @@
                 </div>
                 {{end}}
             </div>
-
+            <!-- Pending Verifications -->
+            <div class="card">
+                <h2>Pending Verifications</h2>
+                {{if .PendingPayments}}
+                <ul>
+                    {{range .PendingPayments}}
+                    <li>
+                        ID {{.ID}} • {{if .Tenant}}{{.Tenant.Name}}{{end}} • {{.GetFormattedDueDate}} • {{.GetFormattedAmount}} • ({{.Notes}})
+                        <button class="btn btn-success" style="margin-left:8px;" onclick="approvePayment({{.ID}})">Approve</button>
+                    </li>
+                    {{end}}
+                </ul>
+                {{else}}
+                <div>No pending verifications.</div>
+                {{end}}
+            </div>
         </div>
 
         <!-- Action Buttons -->
@@ -331,6 +346,21 @@
                     alert('Error: ' + error.message);
                 });
             }
+        }
+
+        function approvePayment(id) {
+            const payload = {
+                payment_id: id,
+                payment_date: new Date().toISOString().split('T')[0],
+                notes: 'Approved by owner'
+            };
+            fetch('/api/payments/mark-paid', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(r=>r.json()).then(d=>{
+                if (d.success) { location.reload(); } else { alert('Error: ' + (d.error||d.message)); }
+            }).catch(e=> alert('Error: ' + e.message));
         }
 
         // Refresh data

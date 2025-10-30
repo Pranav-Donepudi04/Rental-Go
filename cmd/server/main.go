@@ -3,7 +3,8 @@ package main
 import (
 	"backend-form/m/internal/config"
 	"backend-form/m/internal/handlers"
-	"backend-form/m/internal/repository/postgres"
+	httplib "backend-form/m/internal/http"
+	repository "backend-form/m/internal/repository/postgres"
 	"backend-form/m/internal/service"
 	"database/sql"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 var templates = template.Must(template.ParseFiles(
 	"templates/dashboard.html",
 	"templates/unit-detail.html",
+	"templates/login.html",
+	"templates/tenant-dashboard.html",
 ))
 
 func main() {
@@ -25,7 +28,7 @@ func main() {
 	// Load configuration
 	config.LoadEnvFile()
 	cfg := config.Load()
-	
+
 	// Print configuration
 	fmt.Printf("Server will start on port: %s\n", cfg.Port)
 	fmt.Printf("Log Level: %s\n", cfg.LogLevel)
@@ -47,39 +50,35 @@ func main() {
 	if err != nil {
 		log.Fatal("Failed to connect to database:", err)
 	}
+
+	// DB schema should be provisioned externally (no auto-migrations here)
 	// Create rental management repositories
 	unitRepo := repository.NewPostgresUnitRepository(db)
 	tenantRepo := repository.NewPostgresTenantRepository(db)
 	paymentRepo := repository.NewPostgresPaymentRepository(db)
+	userRepo := repository.NewPostgresUserRepository(db)
+	sessionRepo := repository.NewPostgresSessionRepository(db)
 
 	// Create rental management services
 	unitService := service.NewUnitService(unitRepo)
 	tenantService := service.NewTenantService(tenantRepo, unitRepo, paymentRepo)
 	paymentService := service.NewPaymentService(paymentRepo, tenantRepo, unitRepo)
+	authService := service.NewAuthService(userRepo, sessionRepo, 7*24*60*60*1e9)
 
 	// Create rental management handler
-	rentalHandler := handlers.NewRentalHandler(unitService, tenantService, paymentService, templates)
+	rentalHandler := handlers.NewRentalHandler(unitService, tenantService, paymentService, templates, authService)
+	authHandler := handlers.NewAuthHandler(authService, templates, "sid")
+	tenantHandler := handlers.NewTenantHandler(tenantService, paymentService, userRepo, templates, "sid", authService)
 
-	// Set up HTTP routes
-	http.HandleFunc("/", rentalHandler.Dashboard)
-	http.HandleFunc("/dashboard", rentalHandler.Dashboard)
-	http.HandleFunc("/unit/", rentalHandler.UnitDetails)
+	// Owner/Tenant users must exist in DB prior to login
 
-	// API routes
-	http.HandleFunc("/api/units", rentalHandler.GetUnits)
-	http.HandleFunc("/api/tenants", func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "GET" {
-			rentalHandler.GetTenants(w, r)
-		} else if r.Method == "POST" {
-			rentalHandler.CreateTenant(w, r)
-		}
-	})
-	http.HandleFunc("/api/payments", rentalHandler.GetPayments)
-	http.HandleFunc("/api/payments/mark-paid", rentalHandler.MarkPaymentAsPaid)
-	http.HandleFunc("/api/tenants/vacate", rentalHandler.VacateTenant)
-	http.HandleFunc("/api/summary", rentalHandler.GetSummary)
+	// Create router and set up routes
+	router := httplib.NewRouter(authHandler, rentalHandler, tenantHandler, userRepo)
+	router.SetupRoutes()
 
 	// Start the server using config
 	fmt.Printf("Server starting on port %s...\n", cfg.Port)
 	log.Fatal(http.ListenAndServe(":"+cfg.Port, nil))
 }
+
+// (schema bootstrap removed intentionally)

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -45,6 +46,20 @@ func (p *Payment) Validate() error {
 func (p *Payment) GetStatus() string {
 	if p.IsPaid {
 		return "Paid"
+	}
+	if time.Now().After(p.DueDate) {
+		return "Overdue"
+	}
+	return "Pending"
+}
+
+// GetUserFacingStatus refines status: shows "Pending verification" when a txn is submitted
+func (p *Payment) GetUserFacingStatus() string {
+	if p.IsPaid {
+		return "Paid"
+	}
+	if strings.Contains(p.Notes, "TXN:") {
+		return "Pending verification"
 	}
 	if time.Now().After(p.DueDate) {
 		return "Overdue"

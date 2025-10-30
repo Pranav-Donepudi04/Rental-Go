@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -16,15 +17,17 @@ type RentalHandler struct {
 	tenantService  *service.TenantService
 	paymentService *service.PaymentService
 	templates      *template.Template
+	authService    *service.AuthService
 }
 
 // NewRentalHandler creates a new RentalHandler
-func NewRentalHandler(unitService *service.UnitService, tenantService *service.TenantService, paymentService *service.PaymentService, templates *template.Template) *RentalHandler {
+func NewRentalHandler(unitService *service.UnitService, tenantService *service.TenantService, paymentService *service.PaymentService, templates *template.Template, auth *service.AuthService) *RentalHandler {
 	return &RentalHandler{
 		unitService:    unitService,
 		tenantService:  tenantService,
 		paymentService: paymentService,
 		templates:      templates,
+		authService:    auth,
 	}
 }
 
@@ -67,13 +70,22 @@ func (h *RentalHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Compute pending verifications (unpaid with submitted txn)
+	var pendingVerifications []*domain.Payment
+	for _, p := range payments {
+		if !p.IsPaid && strings.Contains(p.Notes, "TXN:") {
+			pendingVerifications = append(pendingVerifications, p)
+		}
+	}
+
 	// Prepare dashboard data
 	dashboardData := map[string]interface{}{
-		"Units":          units,
-		"Tenants":        tenants,
-		"Payments":       payments,
-		"UnitSummary":    unitSummary,
-		"PaymentSummary": paymentSummary,
+		"Units":           units,
+		"Tenants":         tenants,
+		"Payments":        payments,
+		"PendingPayments": pendingVerifications,
+		"UnitSummary":     unitSummary,
+		"PaymentSummary":  paymentSummary,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "dashboard.html", dashboardData); err != nil {
@@ -167,11 +179,25 @@ func (h *RentalHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Create login credentials for tenant and return temp password
+	temp, err := h.authService.CreateTenantCredentials(newTenant.Phone, newTenant.ID)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Tenant created, but failed to create credentials",
+			"tenant":  newTenant,
+		})
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Tenant created successfully",
-		"tenant":  newTenant,
+		"success":       true,
+		"message":       "Tenant created successfully",
+		"tenant":        newTenant,
+		"temp_password": temp,
 	})
 }
 

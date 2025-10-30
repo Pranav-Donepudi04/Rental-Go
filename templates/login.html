@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #333;
+            padding: 20px;
+        }
+        .card {
+            background: rgba(255,255,255,0.95);
+            padding: 28px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: 100%;
+            max-width: 380px;
+        }
+        .card h1 {
+            color: #2c3e50;
+            font-size: 1.8em;
+            margin-bottom: 6px;
+        }
+        .card .sub {
+            color: #7f8c8d;
+            font-size: 0.95em;
+            margin-bottom: 16px;
+        }
+        label { display: block; font-size: 13px; color: #555; margin-top: 12px; }
+        input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            margin-top: 6px;
+            background: #fff;
+        }
+        .role-toggle {
+            display: flex;
+            gap: 8px;
+            background: #f0f2f7;
+            border-radius: 10px;
+            padding: 6px;
+            margin-top: 6px;
+        }
+        .role-option {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 8px 10px;
+            border-radius: 8px;
+            cursor: pointer;
+            user-select: none;
+            color: #2c3e50;
+            border: 1px solid transparent;
+        }
+        .role-option input { display: none; }
+        .role-option.active {
+            background: #ffffff;
+            border-color: #d9e2ec;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .btn {
+            width: 100%;
+            margin-top: 16px;
+            padding: 12px 14px;
+            border: 0;
+            border-radius: 8px;
+            background: #3498db;
+            color: #fff;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 1em;
+            transition: background 0.3s ease;
+        }
+        .btn:hover { background: #2980b9; }
+        .error { color: #e74c3c; font-size: 13px; margin-top: 8px; display: none; }
+    </style>
+    </head>
+<body>
+    <div class="card">
+        <h1>Welcome back</h1>
+        <div class="sub">Sign in to manage your rentals</div>
+        <label>Login As</label>
+        <div class="role-toggle" id="roleToggle">
+            <div class="role-option active" data-value="owner">
+                <input type="radio" name="role" value="owner" checked>
+                <span>Owner</span>
+            </div>
+            <div class="role-option" data-value="tenant">
+                <input type="radio" name="role" value="tenant">
+                <span>Tenant</span>
+            </div>
+        </div>
+        <label>Phone</label>
+        <input id="phone" type="text" placeholder="Enter phone">
+        <label>Password</label>
+        <input id="password" type="password" placeholder="Enter password" onkeydown="if(event.key==='Enter'){doLogin()}">
+        <div id="error" class="error">Invalid credentials</div>
+        <button class="btn" onclick="doLogin()">Login</button>
+    </div>
+    <script>
+    function doLogin() {
+        const role = document.querySelector('input[name="role"]:checked').value;
+        const body = { phone: document.getElementById('phone').value, password: document.getElementById('password').value, role };
+        fetch('/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+        .then(r => { if (r.redirected) { window.location = r.url; return; } if (!r.ok) throw new Error(); })
+        .catch(() => { document.getElementById('error').style.display = 'block'; });
+    }
+
+    // Enhance role toggle interactions to reflect selection visually
+    (function(){
+        const toggle = document.getElementById('roleToggle');
+        if (!toggle) return;
+        toggle.addEventListener('click', function(e){
+            const option = e.target.closest('.role-option');
+            if (!option) return;
+            const value = option.getAttribute('data-value');
+            const input = option.querySelector('input[type="radio"]');
+            if (input) input.checked = true;
+            Array.from(toggle.children).forEach(ch => ch.classList.remove('active'));
+            option.classList.add('active');
+        });
+    })();
+    </script>
+</body>
+</html>
+
+
