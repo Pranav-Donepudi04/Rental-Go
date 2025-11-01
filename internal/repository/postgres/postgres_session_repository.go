@@ -42,3 +42,12 @@ func (r *PostgresSessionRepository) Delete(token string) error {
 	}
 	return nil
 }
+
+// DeleteExpiredByUserID deletes expired sessions for a specific user
+func (r *PostgresSessionRepository) DeleteExpiredByUserID(userID int) error {
+	const q = `DELETE FROM sessions WHERE user_id = $1 AND expires_at < NOW()`
+	if _, err := r.db.Exec(q, userID); err != nil {
+		return fmt.Errorf("delete expired sessions by user: %w", err)
+	}
+	return nil
+}

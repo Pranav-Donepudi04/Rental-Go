@@ -49,6 +49,11 @@ func (s *AuthService) Login(phone, password string) (*domain.Session, *domain.Us
 	if !s.ComparePassword(user.PasswordHash, password) {
 		return nil, nil, errors.New("invalid credentials")
 	}
+
+	// Clean up expired sessions for this user before creating a new one
+	// This prevents session accumulation
+	_ = s.sessions.DeleteExpiredByUserID(user.ID)
+
 	token, err := s.generateToken()
 	if err != nil {
 		return nil, nil, err

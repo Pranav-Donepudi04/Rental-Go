@@ -8,17 +8,21 @@ import (
 
 // Payment represents a rent payment
 type Payment struct {
-	ID            int        `json:"id" db:"id"`
-	TenantID      int        `json:"tenant_id" db:"tenant_id"`
-	UnitID        int        `json:"unit_id" db:"unit_id"`
-	Amount        int        `json:"amount" db:"amount"`
-	PaymentDate   *time.Time `json:"payment_date" db:"payment_date"`
-	DueDate       time.Time  `json:"due_date" db:"due_date"`
-	IsPaid        bool       `json:"is_paid" db:"is_paid"`
-	PaymentMethod string     `json:"payment_method" db:"payment_method"`
-	UPIID         string     `json:"upi_id" db:"upi_id"`
-	Notes         string     `json:"notes" db:"notes"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
+	ID               int        `json:"id" db:"id"`
+	TenantID         int        `json:"tenant_id" db:"tenant_id"`
+	UnitID           int        `json:"unit_id" db:"unit_id"`
+	Amount           int        `json:"amount" db:"amount"`
+	AmountPaid       int        `json:"amount_paid" db:"amount_paid"`
+	RemainingBalance int        `json:"remaining_balance" db:"remaining_balance"`
+	PaymentDate      *time.Time `json:"payment_date" db:"payment_date"`
+	DueDate          time.Time  `json:"due_date" db:"due_date"`
+	IsPaid           bool       `json:"is_paid" db:"is_paid"` // Legacy field, kept for backward compatibility
+	IsFullyPaid      bool       `json:"is_fully_paid" db:"is_fully_paid"`
+	FullyPaidDate    *time.Time `json:"fully_paid_date" db:"fully_paid_date"`
+	PaymentMethod    string     `json:"payment_method" db:"payment_method"`
+	UPIID            string     `json:"upi_id" db:"upi_id"`
+	Notes            string     `json:"notes" db:"notes"`
+	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
 
 	// Related data (populated by joins)
 	Tenant *Tenant `json:"tenant,omitempty"`
@@ -53,13 +57,31 @@ func (p *Payment) GetStatus() string {
 	return "Pending"
 }
 
+// RecalculateBalance recalculates remaining balance and is_fully_paid status
+func (p *Payment) RecalculateBalance() {
+	p.RemainingBalance = p.Amount - p.AmountPaid
+	p.IsFullyPaid = (p.RemainingBalance <= 0)
+	if p.IsFullyPaid && p.FullyPaidDate == nil {
+		now := time.Now()
+		p.FullyPaidDate = &now
+	}
+}
+
 // GetUserFacingStatus refines status: shows "Pending verification" when a txn is submitted
+// Now considers partial payments and transaction verification status
 func (p *Payment) GetUserFacingStatus() string {
-	if p.IsPaid {
-		return "Paid"
+	if p.IsFullyPaid {
+		return "Fully Paid"
+	}
+	if p.AmountPaid > 0 {
+		// Check if there are pending verifications (this will be enhanced when we load transactions)
+		if strings.Contains(p.Notes, "TXN:") {
+			return "Partially Paid (Pending Verification)"
+		}
+		return "Partially Paid"
 	}
 	if strings.Contains(p.Notes, "TXN:") {
-		return "Pending verification"
+		return "Pending Verification"
 	}
 	if time.Now().After(p.DueDate) {
 		return "Overdue"
@@ -91,4 +113,14 @@ func (p *Payment) GetFormattedPaymentDate() string {
 		return "Not paid"
 	}
 	return p.PaymentDate.Format("Jan 2, 2006")
+}
+
+// GetFormattedAmountPaid returns the amount paid formatted as currency
+func (p *Payment) GetFormattedAmountPaid() string {
+	return fmt.Sprintf("₹%d", p.AmountPaid)
+}
+
+// GetFormattedRemainingBalance returns the remaining balance formatted as currency
+func (p *Payment) GetFormattedRemainingBalance() string {
+	return fmt.Sprintf("₹%d", p.RemainingBalance)
 }

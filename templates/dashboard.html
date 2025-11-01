@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rental Management Dashboard</title>
+    <title >Rental Management Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -31,6 +31,7 @@
             margin-bottom: 30px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             text-align: center;
+            position: relative;
         }
 
         .header h1 {
@@ -42,6 +43,12 @@
         .header p {
             color: #7f8c8d;
             font-size: 1.2em;
+        }
+
+        .header-actions {
+            position: absolute;
+            top: 30px;
+            right: 30px;
         }
 
         .stats-grid {
@@ -232,7 +239,12 @@
     <div class="container">
         <!-- Header -->
         <div class="header">
-            <h1>🏠 Rental Management Dashboard</h1>
+            <div class="header-actions">
+                <form method="post" action="/logout" style="display: inline;">
+                    <button class="btn" type="submit">Logout</button>
+                </form>
+            </div>
+            <h1 >🏠 Rental Management Dashboard</h1>
             <p>Manage your property portfolio efficiently</p>
         </div>
 
@@ -264,7 +276,7 @@
         <div class="content-grid">
             <!-- Units Section -->
             <div class="card">
-                <h2>Property Units</h2>
+                <h2>Property Units </h2>
                 {{range .Units}}
                 {{$currentUnit := .}}
                 <div class="unit-item{{if .IsOccupied}} occupied{{end}}" onclick="viewUnitDetails('{{.ID}}')" style="cursor: pointer;">
@@ -285,22 +297,6 @@
                         </div>
                     </div>
                 </div>
-                {{end}}
-            </div>
-            <!-- Pending Verifications -->
-            <div class="card">
-                <h2>Pending Verifications</h2>
-                {{if .PendingPayments}}
-                <ul>
-                    {{range .PendingPayments}}
-                    <li>
-                        ID {{.ID}} • {{if .Tenant}}{{.Tenant.Name}}{{end}} • {{.GetFormattedDueDate}} • {{.GetFormattedAmount}} • ({{.Notes}})
-                        <button class="btn btn-success" style="margin-left:8px;" onclick="approvePayment({{.ID}})">Approve</button>
-                    </li>
-                    {{end}}
-                </ul>
-                {{else}}
-                <div>No pending verifications.</div>
                 {{end}}
             </div>
         </div>

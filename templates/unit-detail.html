@@ -352,18 +352,37 @@
             <h2>Payment History</h2>
             {{if .Payments}}
                 {{range .Payments}}
-                <div class="payment-item {{if .IsPaid}}paid{{else if .GetDaysOverdue}}overdue{{end}}">
-                    <div class="payment-info">
-                        <h4>Payment #{{.ID}}</h4>
-                        <p>Due: {{.GetFormattedDueDate}} | Status: {{.GetStatus}}</p>
-                        {{if .IsPaid}}
-                        <p>Paid: {{.GetFormattedPaymentDate}}</p>
+                <div class="payment-item {{if .IsFullyPaid}}paid{{else if .GetDaysOverdue}}overdue{{end}}">
+                    <div class="payment-info" style="flex: 1;">
+                        <h4>Payment #{{.ID}} - Due: {{.GetFormattedDueDate}}</h4>
+                        <p><strong>Status:</strong> {{.GetUserFacingStatus}}</p>
+                        <div style="margin-top: 8px;">
+                            <span style="display: inline-block; margin-right: 15px;">
+                                <strong>Amount:</strong> {{.GetFormattedAmount}}
+                            </span>
+                            {{if not .IsFullyPaid}}
+                            <span style="display: inline-block; margin-right: 15px; color: #27ae60;">
+                                <strong>Paid:</strong> {{.GetFormattedAmountPaid}}
+                            </span>
+                            <span style="display: inline-block; color: #e74c3c;">
+                                <strong>Remaining:</strong> {{.GetFormattedRemainingBalance}}
+                            </span>
+                            {{end}}
+                        </div>
+                        {{if .IsFullyPaid}}
+                        <p style="margin-top: 5px; color: #27ae60;">✅ Fully Paid on {{if .FullyPaidDate}}{{.FullyPaidDate.Format "Jan 2, 2006"}}{{end}}</p>
                         {{end}}
                         {{if .Notes}}
-                        <p>Notes: {{.Notes}}</p>
+                        <p style="margin-top: 5px; font-size: 0.85em; color: #7f8c8d;">Notes: {{.Notes}}</p>
                         {{end}}
                     </div>
-                    <div class="payment-amount">{{.GetFormattedAmount}}</div>
+                    <div class="payment-amount" style="text-align: right;">
+                        {{if .IsFullyPaid}}
+                            <div style="color: #27ae60; font-size: 1.2em;">✓ Paid</div>
+                        {{else}}
+                            <div style="color: #e74c3c;">Pending</div>
+                        {{end}}
+                    </div>
                 </div>
                 {{end}}
             {{else}}
@@ -372,6 +391,29 @@
                 </div>
             {{end}}
         </div>
+
+        <!-- Pending Verifications -->
+        {{if .PendingVerifications}}
+        <div class="card">
+            <h2>Pending Transaction Verifications</h2>
+            {{range $idx, $txn := .PendingVerifications}}
+            <div class="payment-item" style="margin-bottom: 15px;">
+                <div class="payment-info" style="flex: 1;">
+                    <h4>Transaction ID: {{$txn.TransactionID}}</h4>
+                    <p>Submitted: {{$txn.SubmittedAt.Format "Jan 2, 2006 3:04 PM"}}</p>
+                    <p style="color: #f39c12;">⚠️ Waiting for owner verification</p>
+                </div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    <input type="number" id="verify_amount_{{$txn.ID}}" placeholder="Enter amount" 
+                           style="padding: 8px; border: 1px solid #ddd; border-radius: 5px; width: 150px;" />
+                    <button class="btn btn-success" onclick="verifyTransaction('{{$txn.TransactionID}}', 'verify_amount_{{$txn.ID}}')">
+                        Verify & Update
+                    </button>
+                </div>
+            </div>
+            {{end}}
+        </div>
+        {{end}}
         {{end}}
     </div>
 
@@ -482,7 +524,46 @@
         });
 
         // Set today's date as default for move-in date
-        document.getElementById('moveInDate').value = new Date().toISOString().split('T')[0];
+        const moveInDateInput = document.getElementById('moveInDate');
+        if (moveInDateInput) {
+            moveInDateInput.value = new Date().toISOString().split('T')[0];
+        }
+
+        // Verify transaction
+        function verifyTransaction(transactionID, amountInputId) {
+            const amountInput = document.getElementById(amountInputId);
+            const amount = parseInt(amountInput.value);
+            
+            if (!amount || amount <= 0) {
+                alert('Please enter a valid amount greater than 0');
+                return;
+            }
+
+            const verifyData = {
+                transaction_id: transactionID,
+                amount: amount
+            };
+
+            fetch('/api/payments/mark-paid', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(verifyData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Transaction verified successfully! Payment updated.');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || data.message));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
     </script>
 
     <!-- Add Tenant Modal -->

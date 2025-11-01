@@ -74,6 +74,7 @@ func main() {
 
 	// Create router and set up routes
 	router := httplib.NewRouter(authHandler, rentalHandler, tenantHandler, userRepo)
+	router.SetUserRepository(userRepo) // Set user repo on rental handler for transaction verification
 	router.SetupRoutes()
 
 	// Start the server using config

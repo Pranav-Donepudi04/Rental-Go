@@ -52,7 +52,48 @@ func (s *TenantService) CreateTenant(tenant *domain.Tenant) error {
 		return fmt.Errorf("failed to update unit occupancy: %w", err)
 	}
 
+	// Create first payment immediately
+	if err := s.createFirstPayment(tenant); err != nil {
+		// Log error but don't fail tenant creation
+		// Payment can be created manually if needed
+		fmt.Printf("Warning: Failed to create first payment for tenant %d: %v\n", tenant.ID, err)
+	}
+
 	return nil
+}
+
+// createFirstPayment creates the first payment for a tenant based on move-in date
+func (s *TenantService) createFirstPayment(tenant *domain.Tenant) error {
+	// Get unit
+	unit, err := s.unitRepo.GetUnitByID(tenant.UnitID)
+	if err != nil {
+		return fmt.Errorf("unit not found: %w", err)
+	}
+
+	// Calculate first due date: Next 10th >= move_in_date
+	moveInDate := tenant.MoveInDate
+	firstDueDate := time.Date(moveInDate.Year(), moveInDate.Month(), unit.PaymentDueDay, 0, 0, 0, 0, moveInDate.Location())
+
+	// If move-in date is after due date in same month, use next month
+	if moveInDate.Day() > unit.PaymentDueDay {
+		firstDueDate = firstDueDate.AddDate(0, 1, 0) // Next month
+	}
+
+	// Create payment
+	payment := &domain.Payment{
+		TenantID:         tenant.ID,
+		UnitID:           tenant.UnitID,
+		Amount:           unit.MonthlyRent,
+		AmountPaid:       0,
+		RemainingBalance: unit.MonthlyRent,
+		DueDate:          firstDueDate,
+		IsPaid:           false,
+		IsFullyPaid:      false,
+		PaymentMethod:    "UPI",
+		UPIID:            "9848790200@ybl",
+	}
+
+	return s.paymentRepo.CreatePayment(payment)
 }
 
 // GetTenantByID returns a tenant by ID with related data
@@ -115,12 +156,21 @@ func (s *TenantService) MoveOutTenant(tenantID int) error {
 		return fmt.Errorf("tenant not found: %w", err)
 	}
 
-	// Delete all payments for this tenant first (to avoid foreign key constraint)
-	if err := s.paymentRepo.DeletePaymentsByTenantID(tenantID); err != nil {
-		return fmt.Errorf("failed to delete tenant payments: %w", err)
+	// Delete only unpaid/future payments (keep paid ones for history)
+	unpaid, err := s.paymentRepo.GetUnpaidPaymentsByTenantID(tenantID)
+	if err != nil {
+		// If we can't get unpaid payments, proceed anyway
+		fmt.Printf("Warning: Failed to get unpaid payments: %v\n", err)
+	} else {
+		// Delete each unpaid payment
+		for _, payment := range unpaid {
+			if err := s.paymentRepo.DeletePayment(payment.ID); err != nil {
+				fmt.Printf("Warning: Failed to delete payment %d: %v\n", payment.ID, err)
+			}
+		}
 	}
 
-	// Delete tenant (this will cascade delete family members)
+	// Delete tenant (this will cascade delete family members and payment_transactions)
 	if err := s.tenantRepo.DeleteTenant(tenantID); err != nil {
 		return fmt.Errorf("failed to delete tenant: %w", err)
 	}

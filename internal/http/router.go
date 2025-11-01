@@ -52,7 +52,7 @@ func (r *Router) SetupRoutes() {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	})
 	http.HandleFunc("/logout", r.authHandler.Logout)
-	
+
 	// Redirect root to login
 	http.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
 		http.Redirect(w, req, "/login", http.StatusSeeOther)
@@ -78,8 +78,14 @@ func (r *Router) SetupRoutes() {
 	}))
 	http.HandleFunc("/api/payments", r.requireOwner(r.rentalHandler.GetPayments))
 	http.HandleFunc("/api/payments/mark-paid", r.requireOwner(r.rentalHandler.MarkPaymentAsPaid))
+	http.HandleFunc("/api/payments/pending-verifications", r.requireOwner(r.rentalHandler.GetPendingVerifications))
 	http.HandleFunc("/api/tenants/vacate", r.requireOwner(r.rentalHandler.VacateTenant))
 	http.HandleFunc("/api/summary", r.requireOwner(r.rentalHandler.GetSummary))
+}
+
+// SetUserRepository sets the user repository on the rental handler
+func (r *Router) SetUserRepository(userRepo interfaces.UserRepository) {
+	r.rentalHandler.SetUserRepository(userRepo)
 }
 
 // requireOwner middleware ensures the user is an owner
@@ -91,7 +97,7 @@ func (r *Router) requireOwner(next http.HandlerFunc) http.HandlerFunc {
 			http.Redirect(w, req, "/login", http.StatusSeeOther)
 			return
 		}
-		
+
 		// Add user to context for handlers to use
 		ctx := contextWithUser(req.Context(), user)
 		next(w, req.WithContext(ctx))
@@ -107,7 +113,7 @@ func (r *Router) requireTenant(next http.HandlerFunc) http.HandlerFunc {
 			http.Redirect(w, req, "/login", http.StatusSeeOther)
 			return
 		}
-		
+
 		// Add user to context for handlers to use
 		ctx := contextWithUser(req.Context(), user)
 		next(w, req.WithContext(ctx))
@@ -120,17 +126,17 @@ func (r *Router) loadSessionAndValidateRole(req *http.Request, requiredRole stri
 	if err != nil {
 		return nil, err
 	}
-	
+
 	session, err := r.authHandler.GetAuthService().ValidateSession(cookie.Value)
 	if err != nil || session == nil {
 		return nil, err
 	}
-	
+
 	user, err := r.userRepo.GetByID(session.UserID)
 	if err != nil || user == nil {
 		return nil, err
 	}
-	
+
 	// Check role
 	if requiredRole == "owner" && user.UserType != domain.UserTypeOwner {
 		return nil, fmt.Errorf("unauthorized: owner required")
@@ -138,7 +144,7 @@ func (r *Router) loadSessionAndValidateRole(req *http.Request, requiredRole stri
 	if requiredRole == "tenant" && user.UserType != domain.UserTypeTenant {
 		return nil, fmt.Errorf("unauthorized: tenant required")
 	}
-	
+
 	return user, nil
 }
 

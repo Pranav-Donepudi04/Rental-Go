@@ -48,10 +48,27 @@
                 {{if .Payments}}
                 <ul class="list">
                     {{range .Payments}}
-                    <li class="payment-item {{if .IsPaid}}paid{{else if eq .GetUserFacingStatus "Overdue"}}overdue{{end}}">
-                        <div>
-                            <div><strong>{{.GetFormattedAmount}}</strong> • {{.GetFormattedDueDate}}</div>
-                            <div class="muted">Status: {{.GetUserFacingStatus}} {{if .Notes}} ({{.Notes}}) {{end}}</div>
+                    <li class="payment-item {{if .IsFullyPaid}}paid{{else if eq .GetUserFacingStatus "Overdue"}}overdue{{end}}">
+                        <div style="flex: 1;">
+                            <div><strong>{{.GetFormattedAmount}}</strong> • Due: {{.GetFormattedDueDate}}</div>
+                            <div class="muted" style="margin-top: 5px;">
+                                <strong>Status:</strong> {{.GetUserFacingStatus}}
+                            </div>
+                            {{if not .IsFullyPaid}}
+                            <div style="margin-top: 8px; font-size: 0.9em;">
+                                <span style="color: #27ae60; margin-right: 15px;">
+                                    Paid: <strong>{{.GetFormattedAmountPaid}}</strong>
+                                </span>
+                                <span style="color: #e74c3c;">
+                                    Remaining: <strong>{{.GetFormattedRemainingBalance}}</strong>
+                                </span>
+                            </div>
+                            {{end}}
+                            {{if .IsFullyPaid}}
+                            <div style="margin-top: 5px; color: #27ae60;">
+                                ✅ Fully Paid {{if .FullyPaidDate}}on {{.FullyPaidDate.Format "Jan 2, 2006"}}{{end}}
+                            </div>
+                            {{end}}
                         </div>
                     </li>
                     {{end}}
@@ -109,7 +126,12 @@
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: data.toString()
             }).then(r=>{
-                if (r.status === 204) { alert('Transaction submitted for verification.'); location.reload(); return; }
+                if (r.status === 204) { 
+                    alert('Transaction ID submitted successfully! Owner will verify the amount and update your payment.'); 
+                    f.reset();
+                    location.reload(); 
+                    return; 
+                }
                 return r.text().then(text => { throw new Error(text || 'Failed'); });
             }).catch(err=>{
                 alert('Failed to submit: ' + err.message);

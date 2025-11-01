@@ -2,12 +2,12 @@ package handlers
 
 import (
 	"backend-form/m/internal/domain"
+	"backend-form/m/internal/repository/interfaces"
 	"backend-form/m/internal/service"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -18,6 +18,8 @@ type RentalHandler struct {
 	paymentService *service.PaymentService
 	templates      *template.Template
 	authService    *service.AuthService
+	userRepo       interfaces.UserRepository
+	cookieName     string
 }
 
 // NewRentalHandler creates a new RentalHandler
@@ -28,7 +30,13 @@ func NewRentalHandler(unitService *service.UnitService, tenantService *service.T
 		paymentService: paymentService,
 		templates:      templates,
 		authService:    auth,
+		cookieName:     "sid",
 	}
+}
+
+// SetUserRepository sets the user repository (called from main.go after creation)
+func (h *RentalHandler) SetUserRepository(userRepo interfaces.UserRepository) {
+	h.userRepo = userRepo
 }
 
 // Dashboard renders the main dashboard
@@ -70,22 +78,13 @@ func (h *RentalHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Compute pending verifications (unpaid with submitted txn)
-	var pendingVerifications []*domain.Payment
-	for _, p := range payments {
-		if !p.IsPaid && strings.Contains(p.Notes, "TXN:") {
-			pendingVerifications = append(pendingVerifications, p)
-		}
-	}
-
 	// Prepare dashboard data
 	dashboardData := map[string]interface{}{
-		"Units":           units,
-		"Tenants":         tenants,
-		"Payments":        payments,
-		"PendingPayments": pendingVerifications,
-		"UnitSummary":     unitSummary,
-		"PaymentSummary":  paymentSummary,
+		"Units":          units,
+		"Tenants":        tenants,
+		"Payments":       payments,
+		"UnitSummary":    unitSummary,
+		"PaymentSummary": paymentSummary,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "dashboard.html", dashboardData); err != nil {
@@ -201,7 +200,7 @@ func (h *RentalHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// MarkPaymentAsPaid marks a payment as paid
+// MarkPaymentAsPaid marks a payment as paid (legacy method - supports both old and new flow)
 func (h *RentalHandler) MarkPaymentAsPaid(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -209,13 +208,67 @@ func (h *RentalHandler) MarkPaymentAsPaid(w http.ResponseWriter, r *http.Request
 	}
 
 	var req struct {
-		PaymentID   int    `json:"payment_id"`
-		PaymentDate string `json:"payment_date"`
-		Notes       string `json:"notes"`
+		PaymentID     int    `json:"payment_id"`     // For legacy flow
+		TransactionID string `json:"transaction_id"` // For new transaction verification flow
+		Amount        int    `json:"amount"`         // Amount being verified
+		PaymentDate   string `json:"payment_date"`   // Legacy: payment date
+		Notes         string `json:"notes"`          // Legacy: notes
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Get user from session (owner)
+	cookie, err := r.Cookie(h.cookieName)
+	if err != nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	sess, err := h.authService.ValidateSession(cookie.Value)
+	if err != nil || sess == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if h.userRepo == nil {
+		http.Error(w, "User repository not configured", http.StatusInternalServerError)
+		return
+	}
+	user, err := h.userRepo.GetByID(sess.UserID)
+	if err != nil || user == nil {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	// NEW: Transaction verification flow
+	if req.TransactionID != "" {
+		if req.Amount <= 0 {
+			http.Error(w, "Amount must be greater than 0", http.StatusBadRequest)
+			return
+		}
+
+		if err := h.paymentService.VerifyTransaction(req.TransactionID, req.Amount, user.ID); err != nil {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"message": "Transaction verified and payment updated",
+		})
+		return
+	}
+
+	// LEGACY: Old flow (mark full payment as paid)
+	if req.PaymentID == 0 {
+		http.Error(w, "Either payment_id or transaction_id required", http.StatusBadRequest)
 		return
 	}
 
@@ -326,6 +379,7 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 	// Get tenant details if occupied
 	var tenant *domain.Tenant
 	var payments []*domain.Payment
+	var pendingVerifications []*domain.PaymentTransaction
 	if unit.IsOccupied {
 		tenants, err := h.tenantService.GetTenantsByUnitID(unitID)
 		if err == nil && len(tenants) > 0 {
@@ -336,14 +390,21 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				payments = []*domain.Payment{} // Empty slice if error
 			}
+
+			// Get pending verifications for this tenant
+			pendingVerifications, err = h.paymentService.GetPendingVerifications(tenant.ID)
+			if err != nil {
+				pendingVerifications = []*domain.PaymentTransaction{} // Empty slice if error
+			}
 		}
 	}
 
 	// Prepare unit detail data
 	unitData := map[string]interface{}{
-		"Unit":     unit,
-		"Tenant":   tenant,
-		"Payments": payments,
+		"Unit":                 unit,
+		"Tenant":               tenant,
+		"Payments":             payments,
+		"PendingVerifications": pendingVerifications,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "unit-detail.html", unitData); err != nil {
@@ -361,4 +422,36 @@ func getPaymentStatus(payment *domain.Payment) string {
 		return "Overdue"
 	}
 	return "Pending"
+}
+
+// GetPendingVerifications returns all pending transaction verifications (owner only)
+func (h *RentalHandler) GetPendingVerifications(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get tenant ID from query (optional - if provided, filter by tenant)
+	tenantID := 0
+	if tenantIDStr := r.URL.Query().Get("tenant_id"); tenantIDStr != "" {
+		fmt.Sscanf(tenantIDStr, "%d", &tenantID)
+	}
+
+	// Get all pending verifications (0 = all tenants)
+	pending, err := h.paymentService.GetPendingVerifications(tenantID)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    pending,
+	})
 }
