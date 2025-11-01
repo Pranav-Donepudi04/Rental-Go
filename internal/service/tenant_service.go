@@ -9,17 +9,17 @@ import (
 
 // TenantService handles tenant-related business logic
 type TenantService struct {
-	tenantRepo  interfaces.TenantRepository
-	unitRepo    interfaces.UnitRepository
-	paymentRepo interfaces.PaymentRepository
+	tenantRepo     interfaces.TenantRepository
+	unitRepo       interfaces.UnitRepository
+	paymentService *PaymentService
 }
 
 // NewTenantService creates a new TenantService
-func NewTenantService(tenantRepo interfaces.TenantRepository, unitRepo interfaces.UnitRepository, paymentRepo interfaces.PaymentRepository) *TenantService {
+func NewTenantService(tenantRepo interfaces.TenantRepository, unitRepo interfaces.UnitRepository, paymentService *PaymentService) *TenantService {
 	return &TenantService{
-		tenantRepo:  tenantRepo,
-		unitRepo:    unitRepo,
-		paymentRepo: paymentRepo,
+		tenantRepo:     tenantRepo,
+		unitRepo:       unitRepo,
+		paymentService: paymentService,
 	}
 }
 
@@ -79,21 +79,14 @@ func (s *TenantService) createFirstPayment(tenant *domain.Tenant) error {
 		firstDueDate = firstDueDate.AddDate(0, 1, 0) // Next month
 	}
 
-	// Create payment
-	payment := &domain.Payment{
-		TenantID:         tenant.ID,
-		UnitID:           tenant.UnitID,
-		Amount:           unit.MonthlyRent,
-		AmountPaid:       0,
-		RemainingBalance: unit.MonthlyRent,
-		DueDate:          firstDueDate,
-		IsPaid:           false,
-		IsFullyPaid:      false,
-		PaymentMethod:    "UPI",
-		UPIID:            "9848790200@ybl",
-	}
-
-	return s.paymentRepo.CreatePayment(payment)
+	// Use PaymentService to create payment (ensures consistent business logic)
+	_, err = s.paymentService.CreatePaymentForTenant(
+		tenant.ID,
+		tenant.UnitID,
+		firstDueDate,
+		unit.MonthlyRent,
+	)
+	return err
 }
 
 // GetTenantByID returns a tenant by ID with related data
@@ -156,18 +149,15 @@ func (s *TenantService) MoveOutTenant(tenantID int) error {
 		return fmt.Errorf("tenant not found: %w", err)
 	}
 
-	// Delete only unpaid/future payments (keep paid ones for history)
-	unpaid, err := s.paymentRepo.GetUnpaidPaymentsByTenantID(tenantID)
-	if err != nil {
-		// If we can't get unpaid payments, proceed anyway
-		fmt.Printf("Warning: Failed to get unpaid payments: %v\n", err)
-	} else {
-		// Delete each unpaid payment
-		for _, payment := range unpaid {
-			if err := s.paymentRepo.DeletePayment(payment.ID); err != nil {
-				fmt.Printf("Warning: Failed to delete payment %d: %v\n", payment.ID, err)
-			}
-		}
+	// Delete all payments for this tenant before deleting tenant
+	// This is required because of foreign key constraint: payments.tenant_id → tenants.id
+	// Note: If you want to keep payment history, you'd need to either:
+	// 1. Soft delete tenants (add is_deleted flag) instead of hard delete
+	// 2. Allow NULL tenant_id in payments (schema change)
+	// 3. Move payments to a separate history table before deleting tenant
+	if err := s.paymentService.DeletePaymentsByTenantID(tenantID); err != nil {
+		// Log warning but continue - if deletion fails, tenant deletion will also fail with FK error
+		fmt.Printf("Warning: Failed to delete payments for tenant %d: %v\n", tenantID, err)
 	}
 
 	// Delete tenant (this will cascade delete family members and payment_transactions)

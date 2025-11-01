@@ -69,6 +69,7 @@ func (r *Router) SetupRoutes() {
 	http.HandleFunc("/api/units", r.requireOwner(r.rentalHandler.GetUnits))
 	http.HandleFunc("/api/payments/submit", r.requireTenant(r.tenantHandler.SubmitPayment))
 	http.HandleFunc("/api/me/change-password", r.requireTenant(r.tenantHandler.ChangePassword))
+	http.HandleFunc("/api/me/family-members", r.requireTenant(r.tenantHandler.AddFamilyMember))
 	http.HandleFunc("/api/tenants", r.requireOwner(func(w http.ResponseWriter, req *http.Request) {
 		if req.Method == "GET" {
 			r.rentalHandler.GetTenants(w, req)

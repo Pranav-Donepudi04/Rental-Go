@@ -60,9 +60,10 @@ func main() {
 	sessionRepo := repository.NewPostgresSessionRepository(db)
 
 	// Create rental management services
+	// Note: PaymentService must be created before TenantService since TenantService depends on it
 	unitService := service.NewUnitService(unitRepo)
-	tenantService := service.NewTenantService(tenantRepo, unitRepo, paymentRepo)
 	paymentService := service.NewPaymentService(paymentRepo, tenantRepo, unitRepo)
+	tenantService := service.NewTenantService(tenantRepo, unitRepo, paymentService)
 	authService := service.NewAuthService(userRepo, sessionRepo, 7*24*60*60*1e9)
 
 	// Create rental management handler

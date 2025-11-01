@@ -385,7 +385,7 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 		if err == nil && len(tenants) > 0 {
 			tenant = tenants[0] // Get the primary tenant
 
-			// Get payment history for this tenant
+			// Get payment history for this tenant (transactions are loaded automatically)
 			payments, err = h.paymentService.GetPaymentsByTenantID(tenant.ID)
 			if err != nil {
 				payments = []*domain.Payment{} // Empty slice if error

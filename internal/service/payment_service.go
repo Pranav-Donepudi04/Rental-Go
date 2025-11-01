@@ -92,7 +92,7 @@ func (s *PaymentService) MarkPaymentAsPaid(paymentID int, paymentDate time.Time,
 	return s.autoCreateNextPayment(payment)
 }
 
-// GetPaymentByID returns a payment by ID with related data
+// GetPaymentByID returns a payment by ID with related data and transactions
 func (s *PaymentService) GetPaymentByID(id int) (*domain.Payment, error) {
 	payment, err := s.paymentRepo.GetPaymentByID(id)
 	if err != nil {
@@ -114,13 +114,49 @@ func (s *PaymentService) GetPaymentByID(id int) (*domain.Payment, error) {
 		}
 	}
 
+	// Load transactions for status calculation
+	s.loadPaymentTransactions(payment)
+
 	return payment, nil
 }
 
-// GetPaymentsByTenantID returns all payments for a tenant
-func (s *PaymentService) GetPaymentsByTenantID(tenantID int) ([]*domain.Payment, error) {
-	return s.paymentRepo.GetPaymentsByTenantID(tenantID)
+// loadPaymentTransactions loads transactions for a payment
+func (s *PaymentService) loadPaymentTransactions(payment *domain.Payment) {
+	transactions, _ := s.paymentRepo.GetPaymentTransactionsByPaymentID(payment.ID)
+	payment.Transactions = transactions
 }
+
+// GetPaymentsByTenantID returns all payments for a tenant with transactions loaded
+func (s *PaymentService) GetPaymentsByTenantID(tenantID int) ([]*domain.Payment, error) {
+	payments, err := s.paymentRepo.GetPaymentsByTenantID(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	// Load transactions for each payment so domain can calculate status properly
+	for _, payment := range payments {
+		s.loadPaymentTransactions(payment)
+	}
+	return payments, nil
+}
+
+// GetUnpaidPaymentsByTenantID returns unpaid payments for a tenant
+func (s *PaymentService) GetUnpaidPaymentsByTenantID(tenantID int) ([]*domain.Payment, error) {
+	return s.paymentRepo.GetUnpaidPaymentsByTenantID(tenantID)
+}
+
+// DeletePayment deletes a payment by ID
+func (s *PaymentService) DeletePayment(id int) error {
+	return s.paymentRepo.DeletePayment(id)
+}
+
+// DeletePaymentsByTenantID deletes all payments for a tenant
+func (s *PaymentService) DeletePaymentsByTenantID(tenantID int) error {
+	return s.paymentRepo.DeletePaymentsByTenantID(tenantID)
+}
+
+// ============================================
+// Payment Status & Queries
+// ============================================
 
 // GetOverduePayments returns all overdue payments
 func (s *PaymentService) GetOverduePayments() ([]*domain.Payment, error) {
@@ -230,10 +266,18 @@ func (ps *PaymentSummary) GetFormattedOverdueAmount() string {
 	return fmt.Sprintf("₹%d", ps.OverdueAmount)
 }
 
+// ============================================
+// Payment CRUD Operations
+// ============================================
+
 // GetAllPayments returns all payments
 func (s *PaymentService) GetAllPayments() ([]*domain.Payment, error) {
 	return s.paymentRepo.GetAllPayments()
 }
+
+// ============================================
+// Transaction Management
+// ============================================
 
 // GetPendingVerifications returns all pending verifications for a tenant (0 = all tenants)
 func (s *PaymentService) GetPendingVerifications(tenantID int) ([]*domain.PaymentTransaction, error) {
@@ -274,27 +318,16 @@ func (s *PaymentService) SubmitPaymentIntent(tenantID int, txnID string) error {
 
 // VerifyTransaction verifies a transaction by setting its amount and updating the payment
 func (s *PaymentService) VerifyTransaction(transactionID string, amount int, verifiedByUserID int) error {
-	// First, get transaction to find payment ID before verification
-	// We need payment ID to check if fully paid after verification
-	// Query all payments to find transaction (we'll optimize this later if needed)
-	var paymentID int
-	payments, _ := s.paymentRepo.GetAllPayments()
-	for _, p := range payments {
-		txs, _ := s.paymentRepo.GetPaymentTransactionsByPaymentID(p.ID)
-		for _, tx := range txs {
-			if tx.TransactionID == transactionID {
-				paymentID = p.ID
-				break
-			}
-		}
-		if paymentID > 0 {
-			break
-		}
+	// Get transaction directly by ID (efficient - O(1) instead of O(n))
+	tx, err := s.paymentRepo.GetTransactionByID(transactionID)
+	if err != nil {
+		return fmt.Errorf("get transaction: %w", err)
 	}
-
-	if paymentID == 0 {
+	if tx == nil {
 		return fmt.Errorf("transaction not found")
 	}
+
+	paymentID := tx.PaymentID
 
 	// Verify transaction (this also updates payment's amount_paid and remaining_balance)
 	if err := s.paymentRepo.VerifyTransaction(transactionID, amount, verifiedByUserID); err != nil {
@@ -348,12 +381,28 @@ func (s *PaymentService) getOrCreateCurrentPayment(tenantID int) (*domain.Paymen
 		dueDate = dueDate.AddDate(0, 1, 0) // Next month
 	}
 
+	// Use shared helper method
+	return s.CreatePaymentForTenant(tenantID, tenant.UnitID, dueDate, unit.MonthlyRent)
+}
+
+// ============================================
+// Payment Lifecycle & Helpers
+// ============================================
+
+// CreatePaymentForTenant creates a payment with explicit parameters
+// Used by both TenantService (first payment) and PaymentService (auto-create)
+func (s *PaymentService) CreatePaymentForTenant(
+	tenantID int,
+	unitID int,
+	dueDate time.Time,
+	amount int,
+) (*domain.Payment, error) {
 	payment := &domain.Payment{
 		TenantID:         tenantID,
-		UnitID:           tenant.UnitID,
-		Amount:           unit.MonthlyRent,
+		UnitID:           unitID,
+		Amount:           amount,
 		AmountPaid:       0,
-		RemainingBalance: unit.MonthlyRent,
+		RemainingBalance: amount,
 		DueDate:          dueDate,
 		IsPaid:           false,
 		IsFullyPaid:      false,
@@ -362,7 +411,7 @@ func (s *PaymentService) getOrCreateCurrentPayment(tenantID int) (*domain.Paymen
 	}
 
 	if err := s.paymentRepo.CreatePayment(payment); err != nil {
-		return nil, fmt.Errorf("create payment: %w", err)
+		return nil, fmt.Errorf("create payment for tenant: %w", err)
 	}
 
 	return payment, nil
@@ -373,25 +422,13 @@ func (s *PaymentService) CreateNextPayment(currentPayment *domain.Payment) (*dom
 	// Calculate next due date: currentPayment.DueDate + 1 month
 	nextDueDate := currentPayment.DueDate.AddDate(0, 1, 0)
 
-	// Create next payment
-	nextPayment := &domain.Payment{
-		TenantID:         currentPayment.TenantID,
-		UnitID:           currentPayment.UnitID,
-		Amount:           currentPayment.Amount, // Same rent amount
-		AmountPaid:       0,
-		RemainingBalance: currentPayment.Amount,
-		DueDate:          nextDueDate,
-		IsPaid:           false,
-		IsFullyPaid:      false,
-		PaymentMethod:    currentPayment.PaymentMethod,
-		UPIID:            currentPayment.UPIID,
-	}
-
-	if err := s.paymentRepo.CreatePayment(nextPayment); err != nil {
-		return nil, fmt.Errorf("create next payment: %w", err)
-	}
-
-	return nextPayment, nil
+	// Use shared helper method
+	return s.CreatePaymentForTenant(
+		currentPayment.TenantID,
+		currentPayment.UnitID,
+		nextDueDate,
+		currentPayment.Amount,
+	)
 }
 
 // autoCreateNextPayment automatically creates next payment when current is fully paid

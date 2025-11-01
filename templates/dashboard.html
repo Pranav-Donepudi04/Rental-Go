@@ -304,7 +304,6 @@
         <!-- Action Buttons -->
         <div class="card" style="text-align: center;">
             <h2>Quick Actions</h2>
-            <button class="btn btn-success" onclick="markPaymentPaid()">Mark Payment as Paid</button>
             <button class="btn" onclick="refreshData()">Refresh Data</button>
         </div>
     </div>
@@ -312,37 +311,6 @@
 
     <script>
 
-        // Mark payment as paid
-        function markPaymentPaid() {
-            const paymentId = prompt('Enter Payment ID:');
-            if (paymentId) {
-                const paymentData = {
-                    payment_id: parseInt(paymentId),
-                    payment_date: new Date().toISOString().split('T')[0],
-                    notes: 'Marked as paid via dashboard'
-                };
-
-                fetch('/api/payments/mark-paid', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify(paymentData)
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert('Payment marked as paid!');
-                        location.reload();
-                    } else {
-                        alert('Error: ' + (data.error || data.message));
-                    }
-                })
-                .catch(error => {
-                    alert('Error: ' + error.message);
-                });
-            }
-        }
 
         function approvePayment(id) {
             const payload = {

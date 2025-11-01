@@ -85,7 +85,44 @@
 
             <div class="card">
                 <h2>Family Members</h2>
-                <div class="muted">(CRUD coming soon)</div>
+                <div class="info" style="margin-bottom: 12px; padding: 8px; background: #e8f4f8; border-radius: 6px; font-size: 0.9em;">
+                    <strong>Capacity:</strong> {{.Tenant.NumberOfPeople}} total people ({{.MaxFamilyMembers}} family member{{if ne .MaxFamilyMembers 1}}s{{end}} allowed)
+                    • <strong>Current:</strong> {{.CurrentFamilyCount}} family member{{if ne .CurrentFamilyCount 1}}s{{end}}
+                    {{if .IsFamilyLimitReached}}
+                    <span style="color: #e74c3c; font-weight: bold;"> • Limit Reached</span>
+                    {{end}}
+                </div>
+                {{if .Tenant.FamilyMembers}}
+                <ul class="list" style="margin-bottom: 15px;">
+                    {{range .Tenant.FamilyMembers}}
+                    <li style="padding: 10px; margin: 8px 0; background: #f8f9fa; border-radius: 8px;">
+                        <strong>{{.Name}}</strong> • {{.Relationship}} • Age: {{.Age}}
+                        {{if .HasAadhar}}
+                        <div class="muted" style="margin-top: 4px; font-size: 0.85em;">Aadhar: {{.AadharNumber}}</div>
+                        {{end}}
+                    </li>
+                    {{end}}
+                </ul>
+                {{else}}
+                <div class="muted" style="margin-bottom: 15px;">No family members added yet.</div>
+                {{end}}
+                {{if .IsFamilyLimitReached}}
+                <div style="padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 15px;">
+                    <strong>⚠️ Limit Reached:</strong> You have reached the maximum number of family members ({{.Tenant.NumberOfPeople}} total people allowed).
+                </div>
+                {{else}}
+                <form id="familyMemberForm" onsubmit="return addFamilyMember(event)">
+                    <label>Name *</label>
+                    <input name="name" placeholder="Full name" required />
+                    <label>Age *</label>
+                    <input name="age" type="number" min="1" max="150" placeholder="Age" required />
+                    <label>Relationship *</label>
+                    <input name="relationship" placeholder="e.g., Spouse, Child, Parent" required />
+                    <label>Aadhar Number (optional)</label>
+                    <input name="aadhar_number" placeholder="12 digits" maxlength="12" pattern="[0-9]{12}" />
+                    <button class="btn" type="submit">Add Family Member</button>
+                </form>
+                {{end}}
             </div>
 
             <div class="card">
@@ -139,6 +176,32 @@
             });
         });
     })();
+
+    function addFamilyMember(e){
+        e.preventDefault();
+        const form = document.getElementById('familyMemberForm');
+        const btn = form.querySelector('button[type=submit]');
+        if (btn) btn.disabled = true;
+        const data = new URLSearchParams(new FormData(form));
+        fetch('/api/me/family-members', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: data.toString()
+        }).then(r=>{
+            if (!r.ok) {
+                return r.text().then(text => { throw new Error(text || 'Failed to add family member'); });
+            }
+            return r.json();
+        }).then(_=>{
+            alert('Family member added successfully!');
+            form.reset();
+            location.reload();
+        }).catch(err=>{
+            alert('Failed to add family member: ' + err.message);
+            if (btn) btn.disabled = false;
+        });
+        return false;
+    }
     </script>
 </body>
 </html>

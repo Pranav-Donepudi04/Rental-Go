@@ -2,7 +2,6 @@ package domain
 
 import (
 	"fmt"
-	"strings"
 	"time"
 )
 
@@ -25,8 +24,9 @@ type Payment struct {
 	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
 
 	// Related data (populated by joins)
-	Tenant *Tenant `json:"tenant,omitempty"`
-	Unit   *Unit   `json:"unit,omitempty"`
+	Tenant       *Tenant               `json:"tenant,omitempty"`
+	Unit         *Unit                 `json:"unit,omitempty"`
+	Transactions []*PaymentTransaction `json:"transactions,omitempty"`
 }
 
 // Validate validates the payment data
@@ -67,20 +67,32 @@ func (p *Payment) RecalculateBalance() {
 	}
 }
 
+// HasPendingVerification checks if payment has any unverified transactions
+func (p *Payment) HasPendingVerification() bool {
+	for _, tx := range p.Transactions {
+		if tx != nil && tx.VerifiedAt == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // GetUserFacingStatus refines status: shows "Pending verification" when a txn is submitted
 // Now considers partial payments and transaction verification status
 func (p *Payment) GetUserFacingStatus() string {
 	if p.IsFullyPaid {
 		return "Fully Paid"
 	}
+	hasPendingVerification := p.HasPendingVerification()
 	if p.AmountPaid > 0 {
-		// Check if there are pending verifications (this will be enhanced when we load transactions)
-		if strings.Contains(p.Notes, "TXN:") {
+		// Partially paid
+		if hasPendingVerification {
 			return "Partially Paid (Pending Verification)"
 		}
 		return "Partially Paid"
 	}
-	if strings.Contains(p.Notes, "TXN:") {
+	// Not paid yet
+	if hasPendingVerification {
 		return "Pending Verification"
 	}
 	if time.Now().After(p.DueDate) {

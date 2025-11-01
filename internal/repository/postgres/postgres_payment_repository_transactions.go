@@ -139,6 +139,52 @@ func (r *PostgresPaymentRepository) GetTransactionByPaymentAndID(paymentID int, 
 	return tx, nil
 }
 
+// GetTransactionByID returns a transaction by transaction ID (efficient lookup)
+func (r *PostgresPaymentRepository) GetTransactionByID(transactionID string) (*domain.PaymentTransaction, error) {
+	query := `
+		SELECT id, payment_id, transaction_id, amount, submitted_at, verified_at, verified_by_user_id, notes, created_at
+		FROM payment_transactions
+		WHERE transaction_id = $1`
+
+	tx := &domain.PaymentTransaction{}
+	var amount sql.NullInt64
+	var verifiedAt sql.NullTime
+	var verifiedByUserID sql.NullInt64
+
+	err := r.db.QueryRow(query, transactionID).Scan(
+		&tx.ID,
+		&tx.PaymentID,
+		&tx.TransactionID,
+		&amount,
+		&tx.SubmittedAt,
+		&verifiedAt,
+		&verifiedByUserID,
+		&tx.Notes,
+		&tx.CreatedAt,
+	)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil // Transaction not found
+		}
+		return nil, fmt.Errorf("failed to get transaction by ID: %w", err)
+	}
+
+	if amount.Valid {
+		amt := int(amount.Int64)
+		tx.Amount = &amt
+	}
+	if verifiedAt.Valid {
+		tx.VerifiedAt = &verifiedAt.Time
+	}
+	if verifiedByUserID.Valid {
+		uid := int(verifiedByUserID.Int64)
+		tx.VerifiedByUserID = &uid
+	}
+
+	return tx, nil
+}
+
 // GetPendingVerifications returns all pending (unverified) transactions for a tenant
 func (r *PostgresPaymentRepository) GetPendingVerifications(tenantID int) ([]*domain.PaymentTransaction, error) {
 	query := `

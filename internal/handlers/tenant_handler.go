@@ -1,9 +1,11 @@
 package handlers
 
 import (
+	"backend-form/m/internal/domain"
 	"backend-form/m/internal/repository/interfaces"
 	"backend-form/m/internal/service"
 	"encoding/json"
+	"fmt"
 	"html/template"
 	"net/http"
 )
@@ -48,9 +50,18 @@ func (h *TenantHandler) Me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	payments, _ := h.paymentService.GetPaymentsByTenantID(tenant.ID)
+
+	// Calculate family member limits for template
+	maxFamilyMembers := tenant.NumberOfPeople - 1
+	currentFamilyCount := len(tenant.FamilyMembers)
+	isAtLimit := currentFamilyCount >= maxFamilyMembers
+
 	data := map[string]interface{}{
-		"Tenant":   tenant,
-		"Payments": payments,
+		"Tenant":               tenant,
+		"Payments":             payments,
+		"MaxFamilyMembers":     maxFamilyMembers,
+		"CurrentFamilyCount":   currentFamilyCount,
+		"IsFamilyLimitReached": isAtLimit,
 	}
 	_ = h.templates.ExecuteTemplate(w, "tenant-dashboard.html", data)
 }
@@ -138,4 +149,67 @@ func (h *TenantHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
+}
+
+// AddFamilyMember handles adding a family member (tenant only)
+func (h *TenantHandler) AddFamilyMember(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	c, err := r.Cookie(h.cookieName)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	sess, err := h.auth.ValidateSession(c.Value)
+	if err != nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	user, err := h.users.GetByID(sess.UserID)
+	if err != nil || user == nil || user.TenantID == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	tenant, err := h.tenantService.GetTenantByID(*user.TenantID)
+	if err != nil || tenant == nil {
+		http.Error(w, "tenant not found", http.StatusNotFound)
+		return
+	}
+	// Validate number of people limit
+	// NumberOfPeople includes the tenant themselves, so max family members = NumberOfPeople - 1
+	currentFamilyCount := len(tenant.FamilyMembers)
+	maxAllowedFamilyMembers := tenant.NumberOfPeople - 1
+	if currentFamilyCount >= maxAllowedFamilyMembers {
+		http.Error(w, fmt.Sprintf("cannot add more family members: limit is %d total people (tenant + %d family member(s))", tenant.NumberOfPeople, maxAllowedFamilyMembers), http.StatusBadRequest)
+		return
+	}
+	if err := r.ParseForm(); err != nil {
+		http.Error(w, "bad request", http.StatusBadRequest)
+		return
+	}
+	familyMember := &domain.FamilyMember{
+		TenantID:     *user.TenantID,
+		Name:         r.FormValue("name"),
+		Age:          parseAge(r.FormValue("age")),
+		Relationship: r.FormValue("relationship"),
+		AadharNumber: r.FormValue("aadhar_number"),
+	}
+	if err := h.tenantService.AddFamilyMember(familyMember); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Family member added successfully",
+	})
+}
+
+// Helper function to parse age
+func parseAge(ageStr string) int {
+	var age int
+	fmt.Sscanf(ageStr, "%d", &age)
+	return age
 }

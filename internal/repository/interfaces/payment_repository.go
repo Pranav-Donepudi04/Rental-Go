@@ -21,6 +21,7 @@ type PaymentRepository interface {
 	CreatePaymentTransaction(tx *domain.PaymentTransaction) error
 	GetPaymentTransactionsByPaymentID(paymentID int) ([]*domain.PaymentTransaction, error)
 	GetTransactionByPaymentAndID(paymentID int, transactionID string) (*domain.PaymentTransaction, error)
+	GetTransactionByID(transactionID string) (*domain.PaymentTransaction, error)
 	GetPendingVerifications(tenantID int) ([]*domain.PaymentTransaction, error)
 	VerifyTransaction(transactionID string, amount int, verifiedByUserID int) error
 
