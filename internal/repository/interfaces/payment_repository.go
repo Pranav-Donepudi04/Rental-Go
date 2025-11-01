@@ -24,6 +24,7 @@ type PaymentRepository interface {
 	GetTransactionByID(transactionID string) (*domain.PaymentTransaction, error)
 	GetPendingVerifications(tenantID int) ([]*domain.PaymentTransaction, error)
 	VerifyTransaction(transactionID string, amount int, verifiedByUserID int) error
+	RejectTransaction(transactionID string) error
 
 	// NEW: Auto-create helpers
 	GetLatestPaymentByTenantID(tenantID int) (*domain.Payment, error)

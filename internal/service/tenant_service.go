@@ -24,7 +24,8 @@ func NewTenantService(tenantRepo interfaces.TenantRepository, unitRepo interface
 }
 
 // CreateTenant creates a new tenant and updates unit occupancy
-func (s *TenantService) CreateTenant(tenant *domain.Tenant) error {
+// skipFirstPayment: if true, skips automatic first payment creation (useful for existing tenants)
+func (s *TenantService) CreateTenant(tenant *domain.Tenant, skipFirstPayment bool) error {
 	// Validate tenant data
 	if err := tenant.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
@@ -52,11 +53,13 @@ func (s *TenantService) CreateTenant(tenant *domain.Tenant) error {
 		return fmt.Errorf("failed to update unit occupancy: %w", err)
 	}
 
-	// Create first payment immediately
-	if err := s.createFirstPayment(tenant); err != nil {
-		// Log error but don't fail tenant creation
-		// Payment can be created manually if needed
-		fmt.Printf("Warning: Failed to create first payment for tenant %d: %v\n", tenant.ID, err)
+	// Create first payment immediately (unless skipped for existing tenants)
+	if !skipFirstPayment {
+		if err := s.createFirstPayment(tenant); err != nil {
+			// Log error but don't fail tenant creation
+			// Payment can be created manually if needed
+			fmt.Printf("Warning: Failed to create first payment for tenant %d: %v\n", tenant.ID, err)
+		}
 	}
 
 	return nil

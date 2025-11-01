@@ -139,12 +139,13 @@ func (h *RentalHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var tenant struct {
-		Name           string `json:"name"`
-		Phone          string `json:"phone"`
-		AadharNumber   string `json:"aadhar_number"`
-		MoveInDate     string `json:"move_in_date"`
-		NumberOfPeople int    `json:"number_of_people"`
-		UnitID         int    `json:"unit_id"`
+		Name             string `json:"name"`
+		Phone            string `json:"phone"`
+		AadharNumber     string `json:"aadhar_number"`
+		MoveInDate       string `json:"move_in_date"`
+		NumberOfPeople   int    `json:"number_of_people"`
+		UnitID           int    `json:"unit_id"`
+		IsExistingTenant bool   `json:"is_existing_tenant"` // If true, skip first payment creation
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&tenant); err != nil {
@@ -168,7 +169,7 @@ func (h *RentalHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
 		UnitID:         tenant.UnitID,
 	}
 
-	if err := h.tenantService.CreateTenant(newTenant); err != nil {
+	if err := h.tenantService.CreateTenant(newTenant, tenant.IsExistingTenant); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -453,5 +454,139 @@ func (h *RentalHandler) GetPendingVerifications(w http.ResponseWriter, r *http.R
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"data":    pending,
+	})
+}
+
+// SyncPaymentHistory syncs historical payment records for an existing tenant
+// This allows marking past payments as paid when transitioning from manual to system management
+func (h *RentalHandler) SyncPaymentHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		TenantID int                             `json:"tenant_id"`
+		Payments []service.HistoricalPaymentData `json:"payments"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.TenantID <= 0 {
+		http.Error(w, "tenant_id is required", http.StatusBadRequest)
+		return
+	}
+
+	if len(req.Payments) == 0 {
+		http.Error(w, "payments array is required", http.StatusBadRequest)
+		return
+	}
+
+	// Sync payment history
+	createdPayments, err := h.paymentService.SyncPaymentHistory(req.TenantID, req.Payments)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"message":  fmt.Sprintf("Synced %d payment(s)", len(createdPayments)),
+		"payments": createdPayments,
+	})
+}
+
+// AdjustPaymentDueDate adjusts the due date of the first unpaid payment for a tenant
+func (h *RentalHandler) AdjustPaymentDueDate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		TenantID int    `json:"tenant_id"`
+		DueDate  string `json:"due_date"` // Format: "2006-01-02"
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.TenantID <= 0 {
+		http.Error(w, "tenant_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Parse due date
+	dueDate, err := time.Parse("2006-01-02", req.DueDate)
+	if err != nil {
+		http.Error(w, "Invalid date format. Use YYYY-MM-DD", http.StatusBadRequest)
+		return
+	}
+
+	// Adjust due date
+	if err := h.paymentService.AdjustFirstPaymentDueDate(req.TenantID, dueDate); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Payment due date adjusted successfully",
+	})
+}
+
+// RejectTransaction rejects a pending transaction
+func (h *RentalHandler) RejectTransaction(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		TransactionID string `json:"transaction_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	if req.TransactionID == "" {
+		http.Error(w, "transaction_id is required", http.StatusBadRequest)
+		return
+	}
+
+	// Reject transaction
+	if err := h.paymentService.RejectTransaction(req.TransactionID); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Transaction rejected successfully",
 	})
 }

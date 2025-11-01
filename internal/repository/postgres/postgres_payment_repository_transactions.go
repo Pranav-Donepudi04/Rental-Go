@@ -310,6 +310,42 @@ func (r *PostgresPaymentRepository) VerifyTransaction(transactionID string, amou
 	return nil
 }
 
+// RejectTransaction deletes a pending transaction (rejects it)
+func (r *PostgresPaymentRepository) RejectTransaction(transactionID string) error {
+	// Check if transaction exists and is not verified
+	var verifiedAt sql.NullTime
+	err := r.db.QueryRow(`
+		SELECT verified_at 
+		FROM payment_transactions 
+		WHERE transaction_id = $1`,
+		transactionID,
+	).Scan(&verifiedAt)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return fmt.Errorf("transaction not found")
+		}
+		return fmt.Errorf("failed to check transaction: %w", err)
+	}
+
+	// If already verified, cannot reject
+	if verifiedAt.Valid {
+		return fmt.Errorf("cannot reject already verified transaction")
+	}
+
+	// Delete the transaction
+	_, err = r.db.Exec(`
+		DELETE FROM payment_transactions 
+		WHERE transaction_id = $1`,
+		transactionID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to reject transaction: %w", err)
+	}
+
+	return nil
+}
+
 // ============================================
 // Helper Methods for Auto-Create
 // ============================================

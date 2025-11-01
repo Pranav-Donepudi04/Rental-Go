@@ -82,6 +82,9 @@ func (r *Router) SetupRoutes() {
 	http.HandleFunc("/api/payments/pending-verifications", r.requireOwner(r.rentalHandler.GetPendingVerifications))
 	http.HandleFunc("/api/tenants/vacate", r.requireOwner(r.rentalHandler.VacateTenant))
 	http.HandleFunc("/api/summary", r.requireOwner(r.rentalHandler.GetSummary))
+	http.HandleFunc("/api/payments/sync-history", r.requireOwner(r.rentalHandler.SyncPaymentHistory))
+	http.HandleFunc("/api/payments/adjust-due-date", r.requireOwner(r.rentalHandler.AdjustPaymentDueDate))
+	http.HandleFunc("/api/payments/reject-transaction", r.requireOwner(r.rentalHandler.RejectTransaction))
 }
 
 // SetUserRepository sets the user repository on the rental handler

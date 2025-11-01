@@ -31,11 +31,17 @@ func (s *AuthService) ComparePassword(hash, plain string) bool {
 }
 
 func (s *AuthService) GenerateTempPassword() (string, error) {
-	b := make([]byte, 8)
+	// Generate a simple 6-character alphanumeric password
+	// Using uppercase letters and numbers only for easy sharing
+	const charset = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Excludes easily confused chars (I, O, 0, 1)
+	b := make([]byte, 6)
 	if _, err := rand.Read(b); err != nil {
 		return "", fmt.Errorf("generate temp password: %w", err)
 	}
-	return hex.EncodeToString(b), nil
+	for i := range b {
+		b[i] = charset[int(b[i])%len(charset)]
+	}
+	return string(b), nil
 }
 
 func (s *AuthService) Login(phone, password string) (*domain.Session, *domain.User, error) {

@@ -332,7 +332,10 @@
                         <span class="info-value">{{.Tenant.GetMoveInDuration}}</span>
                     </div>
                 </div>
-                <div style="text-align: center; margin-top: 20px;">
+                <div style="text-align: center; margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                    <button class="btn" id="syncPaymentBtn" style="background: #f39c12;">
+                        Sync Payment History
+                    </button>
                     <button class="btn btn-danger" onclick="vacateTenant({{.Tenant.ID}}, '{{.Tenant.Name}}')">
                         Vacate Tenant
                     </button>
@@ -406,9 +409,14 @@
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                     <input type="number" id="verify_amount_{{$txn.ID}}" placeholder="Enter amount" 
                            style="padding: 8px; border: 1px solid #ddd; border-radius: 5px; width: 150px;" />
-                    <button class="btn btn-success" onclick="verifyTransaction('{{$txn.TransactionID}}', 'verify_amount_{{$txn.ID}}')">
-                        Verify & Update
-                    </button>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-success" onclick="verifyTransaction('{{$txn.TransactionID}}', 'verify_amount_{{$txn.ID}}')" style="flex: 1;">
+                            Verify
+                        </button>
+                        <button class="btn btn-danger" onclick="rejectTransaction('{{$txn.TransactionID}}')" style="flex: 1;">
+                            Reject
+                        </button>
+                    </div>
                 </div>
             </div>
             {{end}}
@@ -479,7 +487,8 @@
                 aadhar_number: formData.get('aadhar'),
                 unit_id: {{.Unit.ID}}, // Use the current unit ID
                 number_of_people: parseInt(formData.get('people')),
-                move_in_date: formData.get('moveInDate')
+                move_in_date: formData.get('moveInDate'),
+                is_existing_tenant: document.getElementById('isExistingTenant').checked
             };
 
             console.log('Sending tenant data:', tenantData);
@@ -498,11 +507,15 @@
             .then(result => {
                 console.log('Response result:', result);
                 if (result.success) {
+                    const isExisting = document.getElementById('isExistingTenant').checked;
+                    let message = 'Tenant added successfully!';
                     if (result.temp_password) {
-                        alert('Tenant added successfully. Temporary password: ' + result.temp_password + '\nPlease share it with the tenant.');
-                    } else {
-                        alert('Tenant added successfully!');
+                        message += '\n\nTemporary password: ' + result.temp_password + '\nPlease share it with the tenant.';
                     }
+                    if (isExisting) {
+                        message += '\n\n⚠️ Remember to sync payment history for past months.';
+                    }
+                    alert(message);
                     closeModal('addTenantModal');
                     location.reload(); // Reload to show the new tenant
                 } else {
@@ -564,6 +577,252 @@
                 alert('Error: ' + error.message);
             });
         }
+
+        // Reject transaction
+        function rejectTransaction(transactionID) {
+            if (!confirm('Are you sure you want to reject this transaction? This action cannot be undone.')) {
+                return;
+            }
+
+            fetch('/api/payments/reject-transaction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    transaction_id: transactionID
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Transaction rejected successfully!');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || data.message));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+
+        // Payment History Sync Functions
+        let paymentEntryCounter = 0;
+
+        function addPaymentEntry() {
+            paymentEntryCounter++;
+            const container = document.getElementById('paymentHistoryEntries');
+            const entry = document.createElement('div');
+            entry.className = 'payment-entry';
+            entry.id = `payment-entry-${paymentEntryCounter}`;
+            entry.style.cssText = 'border: 1px solid #ddd; border-radius: 8px; padding: 15px; margin-bottom: 15px; background: #f8f9fa;';
+            
+            const months = [
+                'January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'
+            ];
+            
+            const currentYear = new Date().getFullYear();
+            const firstValidYear = typeof firstValid !== 'undefined' ? firstValid.year : currentYear;
+            const firstValidMonth = typeof firstValid !== 'undefined' ? firstValid.month : 1;
+            
+            // Calculate which months/years are valid
+            function isMonthYearValid(month, year) {
+                if (year < firstValidYear) return false;
+                if (year === firstValidYear && month < firstValidMonth) return false;
+                return true;
+            }
+            
+            entry.innerHTML = `
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 10px; align-items: end;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Month</label>
+                        <select class="payment-month" required style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;"></select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Year</label>
+                        <input type="number" class="payment-year" value="${currentYear}" min="${firstValidYear}" max="${currentYear}" required 
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label>Payment Date</label>
+                        <input type="date" class="payment-date" required
+                               style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                    </div>
+                    <button type="button" class="btn" onclick="removePaymentEntry('payment-entry-${paymentEntryCounter}')" 
+                            style="background: #e74c3c; padding: 8px 15px;">
+                        Remove
+                    </button>
+                </div>
+                <div class="form-group" style="margin-top: 10px; margin-bottom: 0;">
+                    <label>Notes (optional)</label>
+                    <input type="text" class="payment-notes" placeholder="e.g., Paid via cash, UPI, etc." 
+                           style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
+                </div>
+            `;
+            
+            container.appendChild(entry);
+            
+            // Get references to inputs
+            const dateInput = entry.querySelector('.payment-date');
+            const monthSelect = entry.querySelector('.payment-month');
+            const yearInput = entry.querySelector('.payment-year');
+            
+            // Function to update month options based on selected year
+            function updateMonthOptions() {
+                const selectedYear = parseInt(yearInput.value);
+                monthSelect.innerHTML = months.map((m, i) => {
+                    const monthNum = i + 1;
+                    const isValid = isMonthYearValid(monthNum, selectedYear);
+                    const disabled = !isValid ? 'disabled' : '';
+                    const style = !isValid ? 'color: #999;' : '';
+                    const selected = (selectedYear === firstValidYear && monthNum === firstValidMonth) ? 'selected' : '';
+                    return '<option value="' + monthNum + '" ' + disabled + ' ' + selected + ' style="' + style + '">' + m + (!isValid ? ' (Invalid)' : '') + '</option>';
+                }).join('');
+            }
+            
+            // Initialize month options based on default year
+            updateMonthOptions();
+            
+            // Set default payment date to today
+            if (dateInput) {
+                dateInput.value = new Date().toISOString().split('T')[0];
+            }
+            
+            // Add validation when month/year changes
+            function validateMonthYear() {
+                const selectedMonth = parseInt(monthSelect.value);
+                const selectedYear = parseInt(yearInput.value);
+                
+                if (!isMonthYearValid(selectedMonth, selectedYear)) {
+                    alert(`Cannot select ${months[selectedMonth - 1]} ${selectedYear}. First valid payment month is ${months[firstValidMonth - 1]} ${firstValidYear} (after move-in date).`);
+                    // Reset to first valid month/year
+                    monthSelect.value = firstValidMonth;
+                    yearInput.value = firstValidYear;
+                    updateMonthOptions();
+                }
+            }
+            
+            // Update month options when year changes
+            yearInput.addEventListener('change', function() {
+                updateMonthOptions();
+                validateMonthYear();
+            });
+            
+            monthSelect.addEventListener('change', validateMonthYear);
+        }
+
+        function removePaymentEntry(entryId) {
+            const entry = document.getElementById(entryId);
+            if (entry) {
+                entry.remove();
+            }
+        }
+
+        function syncPaymentHistory(tenantId) {
+            const entries = document.querySelectorAll('.payment-entry');
+            if (entries.length === 0) {
+                alert('Please add at least one payment entry');
+                return;
+            }
+
+            const payments = [];
+            let hasError = false;
+
+            entries.forEach(entry => {
+                const month = parseInt(entry.querySelector('.payment-month').value);
+                const year = parseInt(entry.querySelector('.payment-year').value);
+                const paymentDate = entry.querySelector('.payment-date').value;
+                const notes = entry.querySelector('.payment-notes').value || '';
+
+                if (!paymentDate) {
+                    alert('Please fill all required fields');
+                    hasError = true;
+                    return;
+                }
+
+                // Validate month/year is not before first valid payment month
+                if (typeof firstValid !== 'undefined') {
+                    if (year < firstValid.year || (year === firstValid.year && month < firstValid.month)) {
+                        const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                        alert(`Cannot create payment for ${months[month - 1]} ${year}. First valid payment month is ${months[firstValid.month - 1]} ${firstValid.year} (after move-in date).`);
+                        hasError = true;
+                        return;
+                    }
+                }
+
+                // Convert date to ISO format
+                const paymentDateISO = new Date(paymentDate + 'T00:00:00Z').toISOString();
+
+                payments.push({
+                    month: month,
+                    year: year,
+                    payment_date: paymentDateISO,
+                    notes: notes
+                });
+            });
+
+            if (hasError) {
+                return;
+            }
+
+            // Disable button during submission
+            const submitBtn = event.target;
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Syncing...';
+
+            fetch('/api/payments/sync-history', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    tenant_id: tenantId,
+                    payments: payments
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    let message = `✅ Successfully synced ${data.payments.length} payment(s)!`;
+                    message += '\n\nThe next pending payment has been automatically created.';
+                    alert(message);
+                    closeModal('syncPaymentModal');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.error || data.message));
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Sync Payments';
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Sync Payments';
+            });
+        }
+
+        // Initialize payment sync modal
+        function openSyncModal() {
+            openModal('syncPaymentModal');
+            // Clear existing entries and add one fresh entry
+            const container = document.getElementById('paymentHistoryEntries');
+            if (container) {
+                container.innerHTML = '';
+                paymentEntryCounter = 0;
+                addPaymentEntry();
+            }
+        }
+
+        // Initialize event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Set up sync payment button
+            const syncBtn = document.getElementById('syncPaymentBtn');
+            if (syncBtn) {
+                syncBtn.addEventListener('click', openSyncModal);
+            }
+        });
     </script>
 
     <!-- Add Tenant Modal -->
@@ -592,9 +851,75 @@
                     <label for="moveInDate">Move-in Date:</label>
                     <input type="date" id="moveInDate" name="moveInDate" required>
                 </div>
+                <div class="form-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="isExistingTenant" name="isExistingTenant" style="width: auto; cursor: pointer;">
+                        <span>Existing Tenant (has already paid some months manually)</span>
+                    </label>
+                    <small style="color: #7f8c8d; font-size: 0.9em; margin-top: 5px; display: block;">
+                        Check this if the tenant has been staying and payments were managed manually
+                    </small>
+                </div>
                 <button type="submit" class="btn" onclick="handleAddTenant(event)">Add Tenant</button>
             </form>
         </div>
     </div>
+
+    <!-- Sync Payment History Modal -->
+    {{if .Tenant}}
+    <div id="syncPaymentModal" class="modal">
+        <div class="modal-content" style="max-width: 700px;">
+            <span class="close" onclick="closeModal('syncPaymentModal')">&times;</span>
+            <h2>Sync Payment History for {{.Tenant.Name}}</h2>
+            <p style="color: #7f8c8d; margin-bottom: 20px;">
+                Enter the months that have already been paid manually. This will create payment records marked as "Fully Paid".
+                <br><strong>Note:</strong> You can only sync payments for months on or after the first payment due date.
+                <br>Move-in: {{.Tenant.MoveInDate.Format "January 2, 2006"}} | Payment Due: {{.Unit.PaymentDueDay}}th of each month
+            </p>
+            <div id="paymentHistoryEntries">
+                <!-- Payment entries will be added dynamically -->
+            </div>
+            <button type="button" class="btn" onclick="addPaymentEntry()" style="margin-bottom: 15px; background: #27ae60;">
+                + Add Payment Month
+            </button>
+            <div style="display: flex; gap: 10px;">
+                <button type="button" class="btn" onclick="syncPaymentHistory({{.Tenant.ID}})" style="flex: 1;">
+                    Sync Payments
+                </button>
+                <button type="button" class="btn" onclick="closeModal('syncPaymentModal')" style="background: #95a5a6;">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    </div>
+    <script>
+        // Store tenant and unit info for validation
+        const tenantMoveInDate = new Date('{{.Tenant.MoveInDate.Format "2006-01-02"}}');
+        const unitPaymentDueDay = {{.Unit.PaymentDueDay}};
+        
+        // Calculate first valid payment month/year
+        function getFirstValidPaymentMonthYear() {
+            const moveInYear = tenantMoveInDate.getFullYear();
+            const moveInMonth = tenantMoveInDate.getMonth() + 1; // getMonth() returns 0-11
+            const moveInDay = tenantMoveInDate.getDate();
+            
+            let firstValidYear = moveInYear;
+            let firstValidMonth = moveInMonth;
+            
+            // If move-in day is after payment due day, first payment is next month
+            if (moveInDay > unitPaymentDueDay) {
+                firstValidMonth++;
+                if (firstValidMonth > 12) {
+                    firstValidMonth = 1;
+                    firstValidYear++;
+                }
+            }
+            
+            return { year: firstValidYear, month: firstValidMonth };
+        }
+        
+        const firstValid = getFirstValidPaymentMonthYear();
+    </script>
+    {{end}}
 </body>
 </html>
