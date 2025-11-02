@@ -51,6 +51,16 @@ func main() {
 		log.Fatal("Failed to connect to database:", err)
 	}
 
+	// Configure connection pool settings
+	db.SetMaxOpenConns(cfg.MaxConnections)
+	db.SetMaxIdleConns(cfg.MaxConnections / 2) // Half of max for idle connections
+	db.SetConnMaxLifetime(0)                   // Connections don't expire (let Neon handle it)
+
+	// Test the connection
+	if err := db.Ping(); err != nil {
+		log.Fatal("Failed to ping database:", err)
+	}
+
 	// DB schema should be provisioned externally (no auto-migrations here)
 	// Create rental management repositories
 	unitRepo := repository.NewPostgresUnitRepository(db)

@@ -18,9 +18,14 @@ type Router struct {
 }
 
 // UserContextKey is the key for storing user in context
+// Using string directly allows handlers to access it without import cycles
 type UserContextKey string
 
 const UserKey UserContextKey = "user"
+
+// userContextKeyString is the string value for the context key
+// Handlers can use this string directly to avoid import cycles
+const userContextKeyString = "user"
 
 // NewRouter creates a new router with all handlers
 func NewRouter(
@@ -154,7 +159,8 @@ func (r *Router) loadSessionAndValidateRole(req *http.Request, requiredRole stri
 
 // contextWithUser adds user to context
 func contextWithUser(ctx context.Context, user *domain.User) context.Context {
-	return context.WithValue(ctx, UserKey, user)
+	// Use string key so handlers can access without import cycles
+	return context.WithValue(ctx, userContextKeyString, user)
 }
 
 // GetUserFromContext retrieves user from context

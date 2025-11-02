@@ -1,0 +1,42 @@
+# Git
+.git
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Environment files (will be passed as env vars)
+.env
+.env.local
+.env.*.local
+
+# Build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+cmd/test/
+
+# Test files
+*_test.go
+**/test/
+**/*_test.go
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
+tmp/
+temp/
