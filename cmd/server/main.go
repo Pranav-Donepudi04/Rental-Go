@@ -63,13 +63,23 @@ func main() {
 	// Note: PaymentService must be created before TenantService since TenantService depends on it
 	unitService := service.NewUnitService(unitRepo)
 	paymentService := service.NewPaymentService(paymentRepo, tenantRepo, unitRepo)
+	paymentQueryService := service.NewPaymentQueryService(paymentRepo)
+	// Set global query service for backward compatibility (deprecated methods in PaymentService)
+	// service.SetGlobalPaymentQueryService(paymentQueryService)
+	paymentTransactionService := service.NewPaymentTransactionService(paymentRepo, paymentService)
+	// Set global transaction service for backward compatibility (deprecated methods in PaymentService)
+	// service.SetGlobalPaymentTransactionService(paymentTransactionService)
+	paymentHistoryService := service.NewPaymentHistoryService(paymentRepo, tenantRepo, unitRepo, paymentService)
+	// Set global history service for backward compatibility (deprecated methods in PaymentService)
+	// service.SetGlobalPaymentHistoryService(paymentHistoryService)
 	tenantService := service.NewTenantService(tenantRepo, unitRepo, paymentService)
 	authService := service.NewAuthService(userRepo, sessionRepo, 7*24*60*60*1e9)
+	dashboardService := service.NewDashboardService(unitService, tenantService, paymentQueryService)
 
 	// Create rental management handler
-	rentalHandler := handlers.NewRentalHandler(unitService, tenantService, paymentService, templates, authService)
+	rentalHandler := handlers.NewRentalHandler(unitService, tenantService, paymentService, paymentQueryService, paymentTransactionService, paymentHistoryService, dashboardService, templates, authService)
 	authHandler := handlers.NewAuthHandler(authService, templates, "sid")
-	tenantHandler := handlers.NewTenantHandler(tenantService, paymentService, userRepo, templates, "sid", authService)
+	tenantHandler := handlers.NewTenantHandler(tenantService, paymentService, paymentTransactionService, userRepo, templates, "sid", authService)
 
 	// Owner/Tenant users must exist in DB prior to login
 

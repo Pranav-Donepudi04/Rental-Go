@@ -11,16 +11,25 @@ import (
 )
 
 type TenantHandler struct {
-	tenantService  *service.TenantService
-	paymentService *service.PaymentService
-	users          interfaces.UserRepository
-	templates      *template.Template
-	cookieName     string
-	auth           *service.AuthService
+	tenantService             *service.TenantService
+	paymentService            *service.PaymentService
+	paymentTransactionService *service.PaymentTransactionService
+	users                     interfaces.UserRepository
+	templates                 *template.Template
+	cookieName                string
+	auth                      *service.AuthService
 }
 
-func NewTenantHandler(tenant *service.TenantService, payment *service.PaymentService, users interfaces.UserRepository, templates *template.Template, cookieName string, auth *service.AuthService) *TenantHandler {
-	return &TenantHandler{tenantService: tenant, paymentService: payment, users: users, templates: templates, cookieName: cookieName, auth: auth}
+func NewTenantHandler(tenant *service.TenantService, payment *service.PaymentService, paymentTransaction *service.PaymentTransactionService, users interfaces.UserRepository, templates *template.Template, cookieName string, auth *service.AuthService) *TenantHandler {
+	return &TenantHandler{
+		tenantService:             tenant,
+		paymentService:            payment,
+		paymentTransactionService: paymentTransaction,
+		users:                     users,
+		templates:                 templates,
+		cookieName:                cookieName,
+		auth:                      auth,
+	}
 }
 
 func (h *TenantHandler) Me(w http.ResponseWriter, r *http.Request) {
@@ -40,13 +49,25 @@ func (h *TenantHandler) Me(w http.ResponseWriter, r *http.Request) {
 	}
 	// Resolve user and tenant id
 	user, err := h.users.GetByID(sess.UserID)
-	if err != nil || user == nil || user.TenantID == nil {
-		http.Error(w, "Tenant not found", http.StatusNotFound)
+	if err != nil {
+		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if user == nil {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+	if user.TenantID == nil {
+		http.Error(w, "User account is not linked to a tenant. Please contact the owner to set up your tenant account.", http.StatusNotFound)
 		return
 	}
 	tenant, err := h.tenantService.GetTenantByID(*user.TenantID)
-	if err != nil || tenant == nil {
-		http.Error(w, "Tenant not found", http.StatusNotFound)
+	if err != nil {
+		http.Error(w, "Failed to get tenant: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+	if tenant == nil {
+		http.Error(w, "Tenant record not found. The tenant associated with your account may have been deleted.", http.StatusNotFound)
 		return
 	}
 	payments, _ := h.paymentService.GetPaymentsByTenantID(tenant.ID)
@@ -100,7 +121,7 @@ func (h *TenantHandler) SubmitPayment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if err := h.paymentService.SubmitPaymentIntent(*user.TenantID, txn); err != nil {
+	if err := h.paymentTransactionService.SubmitPaymentIntent(*user.TenantID, txn); err != nil {
 		http.Error(w, "failed", http.StatusBadRequest)
 		return
 	}

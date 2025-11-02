@@ -121,9 +121,11 @@ func (s *AuthService) CreateTenantCredentials(phone string, tenantID int) (strin
 	if err := s.users.UpdatePassword(user.ID, hash); err != nil {
 		return "", err
 	}
-	if user.TenantID == nil {
+	// Always ensure tenant is linked (update if different, link if nil)
+	// This handles cases where tenant was recreated or user was unlinked
+	if user.TenantID == nil || *user.TenantID != tenantID {
 		if err := s.users.LinkTenant(user.ID, tenantID); err != nil {
-			return "", err
+			return "", fmt.Errorf("failed to link tenant: %w", err)
 		}
 	}
 	return temp, nil

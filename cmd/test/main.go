@@ -2,7 +2,7 @@ package main
 
 import (
 	"backend-form/m/internal/config"
-	"backend-form/m/internal/repository/postgres"
+	repository "backend-form/m/internal/repository/postgres"
 	"backend-form/m/internal/service"
 	"database/sql"
 	"fmt"
@@ -38,8 +38,8 @@ func main() {
 
 	// Create services
 	unitService := service.NewUnitService(unitRepo)
-	tenantService := service.NewTenantService(tenantRepo, unitRepo, paymentRepo)
 	paymentService := service.NewPaymentService(paymentRepo, tenantRepo, unitRepo)
+	tenantService := service.NewTenantService(tenantRepo, unitRepo, paymentService)
 
 	// Test 1: Get all units
 	fmt.Println("\n📋 Test 1: Getting all units...")

@@ -13,24 +13,32 @@ import (
 
 // RentalHandler handles all rental management HTTP requests
 type RentalHandler struct {
-	unitService    *service.UnitService
-	tenantService  *service.TenantService
-	paymentService *service.PaymentService
-	templates      *template.Template
-	authService    *service.AuthService
-	userRepo       interfaces.UserRepository
-	cookieName     string
+	unitService               *service.UnitService
+	tenantService             *service.TenantService
+	paymentService            *service.PaymentService
+	paymentQueryService       *service.PaymentQueryService
+	paymentTransactionService *service.PaymentTransactionService
+	paymentHistoryService     *service.PaymentHistoryService
+	dashboardService          *service.DashboardService
+	templates                 *template.Template
+	authService               *service.AuthService
+	userRepo                  interfaces.UserRepository
+	cookieName                string
 }
 
 // NewRentalHandler creates a new RentalHandler
-func NewRentalHandler(unitService *service.UnitService, tenantService *service.TenantService, paymentService *service.PaymentService, templates *template.Template, auth *service.AuthService) *RentalHandler {
+func NewRentalHandler(unitService *service.UnitService, tenantService *service.TenantService, paymentService *service.PaymentService, paymentQueryService *service.PaymentQueryService, paymentTransactionService *service.PaymentTransactionService, paymentHistoryService *service.PaymentHistoryService, dashboardService *service.DashboardService, templates *template.Template, auth *service.AuthService) *RentalHandler {
 	return &RentalHandler{
-		unitService:    unitService,
-		tenantService:  tenantService,
-		paymentService: paymentService,
-		templates:      templates,
-		authService:    auth,
-		cookieName:     "sid",
+		unitService:               unitService,
+		tenantService:             tenantService,
+		paymentService:            paymentService,
+		paymentQueryService:       paymentQueryService,
+		paymentTransactionService: paymentTransactionService,
+		paymentHistoryService:     paymentHistoryService,
+		dashboardService:          dashboardService,
+		templates:                 templates,
+		authService:               auth,
+		cookieName:                "sid",
 	}
 }
 
@@ -46,45 +54,20 @@ func (h *RentalHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get dashboard data
-	units, err := h.unitService.GetAllUnits()
+	// Get dashboard data using DashboardService
+	data, err := h.dashboardService.GetDashboardData()
 	if err != nil {
-		http.Error(w, "Failed to load units", http.StatusInternalServerError)
+		http.Error(w, "Failed to load dashboard data: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	tenants, err := h.tenantService.GetAllTenants()
-	if err != nil {
-		http.Error(w, "Failed to load tenants", http.StatusInternalServerError)
-		return
-	}
-
-	payments, err := h.paymentService.GetAllPayments()
-	if err != nil {
-		http.Error(w, "Failed to load payments", http.StatusInternalServerError)
-		return
-	}
-
-	// Get summaries
-	unitSummary, err := h.unitService.GetRentalSummary()
-	if err != nil {
-		http.Error(w, "Failed to load unit summary", http.StatusInternalServerError)
-		return
-	}
-
-	paymentSummary, err := h.paymentService.GetPaymentSummary()
-	if err != nil {
-		http.Error(w, "Failed to load payment summary", http.StatusInternalServerError)
-		return
-	}
-
-	// Prepare dashboard data
+	// Prepare dashboard data for template (convert to map)
 	dashboardData := map[string]interface{}{
-		"Units":          units,
-		"Tenants":        tenants,
-		"Payments":       payments,
-		"UnitSummary":    unitSummary,
-		"PaymentSummary": paymentSummary,
+		"Units":          data.Units,
+		"Tenants":        data.Tenants,
+		"Payments":       data.Payments,
+		"UnitSummary":    data.UnitSummary,
+		"PaymentSummary": data.PaymentSummary,
 	}
 
 	if err := h.templates.ExecuteTemplate(w, "dashboard.html", dashboardData); err != nil {
@@ -121,7 +104,7 @@ func (h *RentalHandler) GetTenants(w http.ResponseWriter, r *http.Request) {
 
 // GetPayments returns all payments as JSON
 func (h *RentalHandler) GetPayments(w http.ResponseWriter, r *http.Request) {
-	payments, err := h.paymentService.GetAllPayments()
+	payments, err := h.paymentQueryService.GetAllPayments()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -249,7 +232,7 @@ func (h *RentalHandler) MarkPaymentAsPaid(w http.ResponseWriter, r *http.Request
 			return
 		}
 
-		if err := h.paymentService.VerifyTransaction(req.TransactionID, req.Amount, user.ID); err != nil {
+		if err := h.paymentTransactionService.VerifyTransaction(req.TransactionID, req.Amount, user.ID); err != nil {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]interface{}{
@@ -299,21 +282,10 @@ func (h *RentalHandler) MarkPaymentAsPaid(w http.ResponseWriter, r *http.Request
 
 // GetSummary returns dashboard summary
 func (h *RentalHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
-	unitSummary, err := h.unitService.GetRentalSummary()
+	summary, err := h.dashboardService.GetDashboardSummary()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	}
-
-	paymentSummary, err := h.paymentService.GetPaymentSummary()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	summary := map[string]interface{}{
-		"units":    unitSummary,
-		"payments": paymentSummary,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -393,7 +365,7 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 			}
 
 			// Get pending verifications for this tenant
-			pendingVerifications, err = h.paymentService.GetPendingVerifications(tenant.ID)
+			pendingVerifications, err = h.paymentTransactionService.GetPendingVerifications(tenant.ID)
 			if err != nil {
 				pendingVerifications = []*domain.PaymentTransaction{} // Empty slice if error
 			}
@@ -439,7 +411,7 @@ func (h *RentalHandler) GetPendingVerifications(w http.ResponseWriter, r *http.R
 	}
 
 	// Get all pending verifications (0 = all tenants)
-	pending, err := h.paymentService.GetPendingVerifications(tenantID)
+	pending, err := h.paymentTransactionService.GetPendingVerifications(tenantID)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
@@ -486,7 +458,7 @@ func (h *RentalHandler) SyncPaymentHistory(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Sync payment history
-	createdPayments, err := h.paymentService.SyncPaymentHistory(req.TenantID, req.Payments)
+	createdPayments, err := h.paymentHistoryService.SyncPaymentHistory(req.TenantID, req.Payments)
 	if err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
@@ -535,7 +507,7 @@ func (h *RentalHandler) AdjustPaymentDueDate(w http.ResponseWriter, r *http.Requ
 	}
 
 	// Adjust due date
-	if err := h.paymentService.AdjustFirstPaymentDueDate(req.TenantID, dueDate); err != nil {
+	if err := h.paymentHistoryService.AdjustFirstPaymentDueDate(req.TenantID, dueDate); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -574,7 +546,7 @@ func (h *RentalHandler) RejectTransaction(w http.ResponseWriter, r *http.Request
 	}
 
 	// Reject transaction
-	if err := h.paymentService.RejectTransaction(req.TransactionID); err != nil {
+	if err := h.paymentTransactionService.RejectTransaction(req.TransactionID); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]interface{}{
