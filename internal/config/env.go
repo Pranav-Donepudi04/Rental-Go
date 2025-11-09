@@ -23,9 +23,30 @@ func LoadEnvFile() {
 		for scanner.Scan() {
 			line := strings.TrimSpace(scanner.Text())
 
-			// Skip empty lines and comments
-			if line == "" || strings.HasPrefix(line, "#") {
+			// Skip empty lines
+			if line == "" {
 				continue
+			}
+
+			// Skip lines that start with # (full-line comments)
+			if strings.HasPrefix(line, "#") {
+				continue
+			}
+
+			// Remove inline comments (everything after # that's not inside quotes)
+			// Simple approach: find first # that's not inside quotes
+			commentIdx := -1
+			inQuotes := false
+			for i, char := range line {
+				if char == '"' {
+					inQuotes = !inQuotes
+				} else if char == '#' && !inQuotes {
+					commentIdx = i
+					break
+				}
+			}
+			if commentIdx >= 0 {
+				line = strings.TrimSpace(line[:commentIdx])
 			}
 
 			// Parse KEY=VALUE format
@@ -35,10 +56,16 @@ func LoadEnvFile() {
 					key := strings.TrimSpace(parts[0])
 					value := strings.TrimSpace(parts[1])
 
-					// Remove quotes if present
-					if strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"") {
-						value = value[1 : len(value)-1]
+					// Remove quotes if present (both single and double quotes)
+					if len(value) >= 2 {
+						if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
+							(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+							value = value[1 : len(value)-1]
+						}
 					}
+
+					// Trim any remaining whitespace
+					value = strings.TrimSpace(value)
 
 					os.Setenv(key, value)
 				}

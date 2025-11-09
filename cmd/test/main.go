@@ -44,7 +44,8 @@ func main() {
 	// Create services (matching main.go structure and order)
 	fmt.Println("\n⚙️  Initializing services...")
 	unitService := service.NewUnitService(unitRepo)
-	paymentService := service.NewPaymentService(paymentRepo, tenantRepo, unitRepo)
+	// Use default payment config values
+	paymentService := service.NewPaymentService(paymentRepo, tenantRepo, unitRepo, "UPI", "9848790200@ybl")
 	paymentQueryService := service.NewPaymentQueryService(paymentRepo)
 	paymentTransactionService := service.NewPaymentTransactionService(paymentRepo, paymentService)
 	paymentHistoryService := service.NewPaymentHistoryService(paymentRepo, tenantRepo, unitRepo, paymentService)
@@ -439,8 +440,10 @@ func testAuthService(authService *service.AuthService) {
 
 	// Test 1: Hash password
 	fmt.Println("\n  Test 7.1: Hashing password...")
-	hashed := authService.HashPassword("testpassword123")
-	if hashed != "" {
+	hashed, err := authService.HashPassword("testpassword123")
+	if err != nil {
+		fmt.Printf("    ❌ Password hashing failed: %v\n", err)
+	} else if hashed != "" {
 		fmt.Println("    ✅ Password hashed successfully")
 	} else {
 		fmt.Println("    ❌ Password hashing failed")

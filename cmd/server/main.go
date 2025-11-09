@@ -4,13 +4,21 @@ import (
 	"backend-form/m/internal/config"
 	"backend-form/m/internal/handlers"
 	httplib "backend-form/m/internal/http"
+	"backend-form/m/internal/http/middleware"
+	"backend-form/m/internal/logger"
+	"backend-form/m/internal/repository/interfaces"
 	repository "backend-form/m/internal/repository/postgres"
 	"backend-form/m/internal/service"
+	"context"
 	"database/sql"
-	"fmt"
 	"html/template"
-	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"go.uber.org/zap"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
@@ -22,33 +30,135 @@ var templates = template.Must(template.ParseFiles(
 	"templates/tenant-dashboard.html",
 ))
 
-func main() {
-	fmt.Println("Starting Go Backend Server...")
+// App holds all application dependencies
+type App struct {
+	Config                *config.Config
+	DB                    *sql.DB
+	Repositories          *Repositories
+	Services              *Services
+	Handlers              *Handlers
+	Router                *httplib.Router
+	Server                *http.Server
+	NotificationScheduler *service.NotificationScheduler
+}
 
-	// Load configuration
+// Repositories holds all repository instances
+type Repositories struct {
+	Unit         interfaces.UnitRepository
+	Tenant       interfaces.TenantRepository
+	Payment      interfaces.PaymentRepository
+	User         interfaces.UserRepository
+	Session      interfaces.SessionRepository
+	Notification interfaces.NotificationRepository
+}
+
+// Services holds all service instances
+type Services struct {
+	Unit                  *service.UnitService
+	Payment               *service.PaymentService
+	PaymentQuery          *service.PaymentQueryService
+	PaymentTransaction    *service.PaymentTransactionService
+	PaymentHistory        *service.PaymentHistoryService
+	Tenant                *service.TenantService
+	Auth                  *service.AuthService
+	Dashboard             *service.DashboardService
+	Notification          *service.NotificationService
+	NotificationScheduler *service.NotificationScheduler
+}
+
+// Handlers holds all HTTP handler instances
+type Handlers struct {
+	Auth    *handlers.AuthHandler
+	Rental  *handlers.RentalHandler
+	Tenant  *handlers.TenantHandler
+	Metrics *handlers.MetricsHandler
+}
+
+func main() {
+	// Initialize configuration
+	cfg := initializeConfig()
+
+	// Initialize logger
+	initializeLogger(cfg)
+	defer logger.Sync()
+
+	// Setup application
+	app := setupApplication(cfg)
+
+	// Start server
+	startServer(app)
+
+	// Wait for shutdown signal
+	waitForShutdown(app)
+}
+
+// initializeConfig loads and validates configuration
+func initializeConfig() *config.Config {
 	config.LoadEnvFile()
 	cfg := config.Load()
 
-	// Print configuration
-	fmt.Printf("Server will start on port: %s\n", cfg.Port)
-	fmt.Printf("Log Level: %s\n", cfg.LogLevel)
-	fmt.Printf("Database Host: %s\n", cfg.DBHost)
-	fmt.Printf("Database Port: %s\n", cfg.DBPort)
-	fmt.Printf("Database Name: %s\n", cfg.DBName)
-	fmt.Printf("Database User: %s\n", cfg.DBUser)
-	fmt.Printf("Database SSL Mode: %s\n", cfg.DBSSLMode)
-	fmt.Printf("Max Connections: %d\n", cfg.MaxConnections)
-	fmt.Printf("Connection Timeout: %d seconds\n", cfg.ConnectionTimeout)
-
-	// Only print database URL if it's set (for security, don't print full URL with password)
-	if cfg.DatabaseURL != "" {
-		fmt.Printf("Database URL: [CONFIGURED]\n")
-	} else {
-		fmt.Printf("Database URL: [NOT SET]\n")
+	if err := cfg.Validate(); err != nil {
+		os.Stderr.WriteString("Configuration validation failed: " + err.Error() + "\n")
+		os.Exit(1)
 	}
+
+	return cfg
+}
+
+// initializeLogger sets up structured logging
+func initializeLogger(cfg *config.Config) {
+	if err := logger.InitLogger(cfg.LogLevel, cfg.Environment); err != nil {
+		os.Stderr.WriteString("Failed to initialize logger: " + err.Error() + "\n")
+		os.Exit(1)
+	}
+
+	logger.Info("Starting Go Backend Server",
+		zap.String("port", cfg.Port),
+		zap.String("environment", cfg.Environment),
+		zap.String("log_level", cfg.LogLevel),
+	)
+
+	logger.Info("Server configuration",
+		zap.String("db_host", cfg.DBHost),
+		zap.String("db_port", cfg.DBPort),
+		zap.String("db_name", cfg.DBName),
+		zap.String("db_user", cfg.DBUser),
+		zap.String("db_ssl_mode", cfg.DBSSLMode),
+		zap.Int("max_connections", cfg.MaxConnections),
+		zap.Int("connection_timeout", cfg.ConnectionTimeout),
+		zap.Bool("database_configured", cfg.DatabaseURL != ""),
+	)
+}
+
+// setupApplication initializes all application components
+func setupApplication(cfg *config.Config) *App {
+	db := setupDatabase(cfg)
+	repos := setupRepositories(db)
+	services := setupServices(cfg, repos)
+	handlers := setupHandlers(cfg, services, repos)
+	router := setupRouter(cfg, handlers, repos, db)
+	server := setupHTTPServer(cfg)
+	notificationScheduler := setupNotificationScheduler(cfg, services.Notification)
+
+	return &App{
+		Config:                cfg,
+		DB:                    db,
+		Repositories:          repos,
+		Services:              services,
+		Handlers:              handlers,
+		Router:                router,
+		Server:                server,
+		NotificationScheduler: notificationScheduler,
+	}
+}
+
+// setupDatabase initializes and configures the database connection
+func setupDatabase(cfg *config.Config) *sql.DB {
 	db, err := sql.Open("postgres", cfg.DatabaseURL)
 	if err != nil {
-		log.Fatal("Failed to connect to database:", err)
+		logger.Fatal("Failed to connect to database",
+			zap.Error(err),
+		)
 	}
 
 	// Configure connection pool settings
@@ -58,69 +168,196 @@ func main() {
 
 	// Test the connection
 	if err := db.Ping(); err != nil {
-		log.Fatal("Failed to ping database:", err)
+		logger.Fatal("Failed to ping database",
+			zap.Error(err),
+		)
 	}
 
-	// DB schema should be provisioned externally (no auto-migrations here)
-	// Create rental management repositories
-	unitRepo := repository.NewPostgresUnitRepository(db)
-	tenantRepo := repository.NewPostgresTenantRepository(db)
-	paymentRepo := repository.NewPostgresPaymentRepository(db)
-	userRepo := repository.NewPostgresUserRepository(db)
-	sessionRepo := repository.NewPostgresSessionRepository(db)
-	notificationRepo := repository.NewPostgresNotificationRepository(db)
+	logger.Info("Database connection established")
+	return db
+}
 
-	// Create rental management services
+// setupRepositories creates all repository instances
+func setupRepositories(db *sql.DB) *Repositories {
+	return &Repositories{
+		Unit:         repository.NewPostgresUnitRepository(db),
+		Tenant:       repository.NewPostgresTenantRepository(db),
+		Payment:      repository.NewPostgresPaymentRepository(db),
+		User:         repository.NewPostgresUserRepository(db),
+		Session:      repository.NewPostgresSessionRepository(db),
+		Notification: repository.NewPostgresNotificationRepository(db),
+	}
+}
+
+// setupServices creates all service instances
+func setupServices(cfg *config.Config, repos *Repositories) *Services {
 	// Note: PaymentService must be created before TenantService since TenantService depends on it
-	unitService := service.NewUnitService(unitRepo)
-	paymentService := service.NewPaymentService(paymentRepo, tenantRepo, unitRepo)
-	paymentQueryService := service.NewPaymentQueryService(paymentRepo)
-	// Set global query service for backward compatibility (deprecated methods in PaymentService)
-	// service.SetGlobalPaymentQueryService(paymentQueryService)
-	paymentTransactionService := service.NewPaymentTransactionService(paymentRepo, paymentService)
-	// Set global transaction service for backward compatibility (deprecated methods in PaymentService)
-	// service.SetGlobalPaymentTransactionService(paymentTransactionService)
-	paymentHistoryService := service.NewPaymentHistoryService(paymentRepo, tenantRepo, unitRepo, paymentService)
-	// Set global history service for backward compatibility (deprecated methods in PaymentService)
-	// service.SetGlobalPaymentHistoryService(paymentHistoryService)
-	tenantService := service.NewTenantService(tenantRepo, unitRepo, paymentService)
-	authService := service.NewAuthService(userRepo, sessionRepo, 7*24*60*60*1e9)
+	unitService := service.NewUnitService(repos.Unit)
+	paymentService := service.NewPaymentService(repos.Payment, repos.Tenant, repos.Unit, cfg.DefaultPaymentMethod, cfg.DefaultUPIID)
+	paymentQueryService := service.NewPaymentQueryService(repos.Payment)
+	paymentTransactionService := service.NewPaymentTransactionService(repos.Payment, paymentService)
+	paymentHistoryService := service.NewPaymentHistoryService(repos.Payment, repos.Tenant, repos.Unit, paymentService)
+	tenantService := service.NewTenantService(repos.Tenant, repos.Unit, paymentService)
+	authService := service.NewAuthService(repos.User, repos.Session, 7*24*60*60*1e9)
 	dashboardService := service.NewDashboardService(unitService, tenantService, paymentQueryService)
 
-	// Create notification service and scheduler
 	notificationService := service.NewNotificationService(
-		notificationRepo,
-		paymentRepo,
-		tenantRepo,
-		unitRepo,
+		repos.Notification,
+		repos.Payment,
+		repos.Tenant,
+		repos.Unit,
 		cfg.TelegramBotToken,
 		cfg.OwnerChatID,
 	)
 	notificationScheduler := service.NewNotificationScheduler(notificationService)
 
-	// Start notification scheduler (runs daily at 9 AM)
-	if cfg.TelegramBotToken != "" && cfg.OwnerChatID != "" {
-		notificationScheduler.Start()
-		fmt.Println("Notification scheduler started")
-	} else {
-		fmt.Println("Warning: Telegram bot token or owner chat ID not configured. Notifications disabled.")
+	return &Services{
+		Unit:                  unitService,
+		Payment:               paymentService,
+		PaymentQuery:          paymentQueryService,
+		PaymentTransaction:    paymentTransactionService,
+		PaymentHistory:        paymentHistoryService,
+		Tenant:                tenantService,
+		Auth:                  authService,
+		Dashboard:             dashboardService,
+		Notification:          notificationService,
+		NotificationScheduler: notificationScheduler,
 	}
-
-	// Create rental management handler
-	rentalHandler := handlers.NewRentalHandler(unitService, tenantService, paymentService, paymentQueryService, paymentTransactionService, paymentHistoryService, dashboardService, notificationService, templates, authService)
-	authHandler := handlers.NewAuthHandler(authService, templates, "sid")
-	tenantHandler := handlers.NewTenantHandler(tenantService, paymentService, paymentTransactionService, userRepo, templates, "sid", authService)
-
-	// Owner/Tenant users must exist in DB prior to login
-
-	// Create router and set up routes
-	router := httplib.NewRouter(authHandler, rentalHandler, tenantHandler, userRepo)
-	router.SetUserRepository(userRepo) // Set user repo on rental handler for transaction verification
-	router.SetupRoutes()
-
-	// Start the server using config
-	fmt.Printf("Server starting on port %s...\n", cfg.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, nil))
 }
 
-// (schema bootstrap removed intentionally)
+// setupHandlers creates all HTTP handler instances
+func setupHandlers(cfg *config.Config, services *Services, repos *Repositories) *Handlers {
+	rentalHandler := handlers.NewRentalHandler(
+		services.Unit,
+		services.Tenant,
+		services.Payment,
+		services.PaymentQuery,
+		services.PaymentTransaction,
+		services.PaymentHistory,
+		services.Dashboard,
+		services.Notification,
+		templates,
+		services.Auth,
+	)
+
+	authHandler := handlers.NewAuthHandler(
+		services.Auth,
+		templates,
+		cfg.CookieName,
+		cfg.CookieSecure,
+		cfg.CookieSameSite,
+	)
+
+	tenantHandler := handlers.NewTenantHandler(
+		services.Tenant,
+		services.Payment,
+		services.PaymentTransaction,
+		repos.User,
+		templates,
+		cfg.CookieName,
+		services.Auth,
+	)
+
+	return &Handlers{
+		Auth:    authHandler,
+		Rental:  rentalHandler,
+		Tenant:  tenantHandler,
+		Metrics: handlers.NewMetricsHandler(),
+	}
+}
+
+// setupRouter creates and configures the HTTP router
+func setupRouter(cfg *config.Config, handlers *Handlers, repos *Repositories, db *sql.DB) *httplib.Router {
+	loginLimiter := middleware.NewRateLimiter(5.0/900.0, 5) // 5 requests per 900 seconds (15 minutes)
+	dbHealthCheck := middleware.NewDatabaseHealthCheck(db)
+
+	router := httplib.NewRouter(
+		handlers.Auth,
+		handlers.Rental,
+		handlers.Tenant,
+		repos.User,
+		loginLimiter,
+		dbHealthCheck,
+	)
+	router.SetUserRepository(repos.User) // Set user repo on rental handler for transaction verification
+	router.SetupRoutes()
+
+	return router
+}
+
+// setupHTTPServer creates and configures the HTTP server
+// Note: Router uses http.HandleFunc which registers on DefaultServeMux,
+// so we use nil as Handler to use the default ServeMux
+func setupHTTPServer(cfg *config.Config) *http.Server {
+	return &http.Server{
+		Addr:         ":" + cfg.Port,
+		ReadTimeout:  time.Duration(cfg.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(cfg.WriteTimeout) * time.Second,
+		IdleTimeout:  time.Duration(cfg.IdleTimeout) * time.Second,
+		Handler:      nil, // Uses DefaultServeMux (router registers routes via http.HandleFunc)
+	}
+}
+
+// setupNotificationScheduler starts the notification scheduler if configured
+func setupNotificationScheduler(cfg *config.Config, notificationService *service.NotificationService) *service.NotificationScheduler {
+	scheduler := service.NewNotificationScheduler(notificationService)
+
+	if cfg.TelegramBotToken != "" && cfg.OwnerChatID != "" {
+		scheduler.Start()
+		logger.Info("Notification scheduler started")
+	} else {
+		logger.Warn("Telegram bot token or owner chat ID not configured. Notifications disabled.")
+	}
+
+	return scheduler
+}
+
+// startServer starts the HTTP server in a goroutine
+func startServer(app *App) {
+	go func() {
+		logger.Info("Server starting",
+			zap.String("port", app.Config.Port),
+			zap.String("address", app.Server.Addr),
+		)
+		if err := app.Server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Fatal("Server failed to start",
+				zap.Error(err),
+			)
+		}
+	}()
+}
+
+// waitForShutdown waits for shutdown signal and performs graceful shutdown
+func waitForShutdown(app *App) {
+	// Wait for interrupt signal
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+	<-quit
+
+	logger.Info("Shutting down server...")
+
+	// Graceful shutdown with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	if err := app.Server.Shutdown(ctx); err != nil {
+		logger.Error("Server forced to shutdown",
+			zap.Error(err),
+		)
+	}
+
+	// Stop notification scheduler
+	if app.Config.TelegramBotToken != "" && app.Config.OwnerChatID != "" {
+		app.NotificationScheduler.Stop()
+		logger.Info("Notification scheduler stopped")
+	}
+
+	// Close database connection
+	if err := app.DB.Close(); err != nil {
+		logger.Error("Error closing database connection",
+			zap.Error(err),
+		)
+	}
+
+	logger.Info("Server stopped gracefully")
+}

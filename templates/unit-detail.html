@@ -332,9 +332,12 @@
                         <span class="info-value">{{.Tenant.GetMoveInDuration}}</span>
                     </div>
                 </div>
-                <div style="text-align: center; margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+                <div style="text-align: center; margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
                     <button class="btn" id="syncPaymentBtn" style="background: #f39c12;">
                         Sync Payment History
+                    </button>
+                    <button class="btn" onclick="regeneratePassword({{.Tenant.ID}}, '{{.Tenant.Name}}')" style="background: #3498db;">
+                        🔑 Regenerate Temp Password
                     </button>
                     <button class="btn btn-danger" onclick="vacateTenant({{.Tenant.ID}}, '{{.Tenant.Name}}')">
                         Vacate Tenant
@@ -352,12 +355,29 @@
         <!-- Payment History -->
         {{if .Tenant}}
         <div class="card">
-            <h2>Payment History</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Payment History</h2>
+                <button class="btn" onclick="openModal('addPaymentModal')" style="background: #27ae60;">
+                    + Add Payment
+                </button>
+            </div>
+            <!-- Payment Type Filter -->
+            <div style="margin-bottom: 20px;">
+                <label for="paymentFilter" style="display: block; margin-bottom: 8px; font-weight: bold; color: #2c3e50;">Filter by Payment Type:</label>
+                <select id="paymentFilter" onchange="filterPayments()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; width: 250px;">
+                    <option value="rent">Rent</option>
+                    <option value="water_bill">Water Bill</option>
+                    <option value="current_bill">Current Bill</option>
+                    <option value="maintenance">Maintenance</option>
+                    <option value="all">All Types</option>
+                </select>
+            </div>
+            <div id="paymentHistoryList">
             {{if .Payments}}
                 {{range .Payments}}
-                <div class="payment-item {{if .IsFullyPaid}}paid{{else if .GetDaysOverdue}}overdue{{end}}">
+                <div class="payment-item {{if .IsFullyPaid}}paid{{else if .GetDaysOverdue}}overdue{{end}}" data-payment-label="{{.Label}}">
                     <div class="payment-info" style="flex: 1;">
-                        <h4>Payment #{{.ID}} - Due: {{.GetFormattedDueDate}}</h4>
+                        <h4>{{.GetLabelDisplayName}} - Payment #{{.ID}} - Due: {{.GetFormattedDueDate}}</h4>
                         <p><strong>Status:</strong> {{.GetUserFacingStatus}}</p>
                         <div style="margin-top: 8px;">
                             <span style="display: inline-block; margin-right: 15px;">
@@ -393,6 +413,7 @@
                     <p>No payment history available for this tenant.</p>
                 </div>
             {{end}}
+            </div>
         </div>
 
         <!-- Pending Verifications -->
@@ -410,7 +431,7 @@
                     <input type="number" id="verify_amount_{{$txn.ID}}" placeholder="Enter amount" 
                            style="padding: 8px; border: 1px solid #ddd; border-radius: 5px; width: 150px;" />
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-success" onclick="verifyTransaction('{{$txn.TransactionID}}', 'verify_amount_{{$txn.ID}}')" style="flex: 1;">
+                        <button class="btn btn-success" onclick="verifyTransaction('{{$txn.TransactionID}}', 'verify_amount_{{$txn.ID}}'); event.preventDefault(); return false;" style="flex: 1;">
                             Verify
                         </button>
                         <button class="btn btn-danger" onclick="rejectTransaction('{{$txn.TransactionID}}')" style="flex: 1;">
@@ -426,6 +447,46 @@
     </div>
 
     <script>
+        // Regenerate password function
+        function regeneratePassword(tenantId, tenantName) {
+            if (confirm(`Regenerate temporary password for ${tenantName}?`)) {
+                fetch('/api/tenants/regenerate-password', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tenant_id: tenantId
+                    })
+                })
+                .then(response => {
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        if (response.redirected || response.status === 401 || response.status === 403) {
+                            alert('Session expired. Please login again.');
+                            window.location.href = '/login';
+                            return;
+                        }
+                        return response.text().then(text => {
+                            throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data && data.success) {
+                        const password = data.temp_password || 'N/A';
+                        alert(`Password regenerated successfully!\n\nTemporary password: ${password}\n\nPlease share this with ${tenantName}.`);
+                    } else {
+                        alert('Error: ' + (data?.error || data?.message || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    alert('Error: ' + error.message);
+                });
+            }
+        }
+
         // Vacate tenant function
         function vacateTenant(tenantId, tenantName) {
             if (confirm(`Are you sure you want to vacate ${tenantName}? This will remove the tenant and free up the unit.`)) {
@@ -440,13 +501,28 @@
                     },
                     body: JSON.stringify(vacateData)
                 })
-                .then(response => response.json())
+                .then(response => {
+                    // Check if response is JSON
+                    const contentType = response.headers.get('content-type');
+                    if (!contentType || !contentType.includes('application/json')) {
+                        // If not JSON, likely a redirect (e.g., to login page)
+                        if (response.redirected || response.status === 401 || response.status === 403) {
+                            alert('Session expired. Please login again.');
+                            window.location.href = '/login';
+                            return;
+                        }
+                        return response.text().then(text => {
+                            throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+                        });
+                    }
+                    return response.json();
+                })
                 .then(data => {
-                    if (data.success) {
+                    if (data && data.success) {
                         alert(`${tenantName} vacated successfully!`);
                         window.location.href = '/dashboard';
                     } else {
-                        alert('Error: ' + (data.error || data.message));
+                        alert('Error: ' + (data?.error || data?.message || 'Unknown error'));
                     }
                 })
                 .catch(error => {
@@ -497,11 +573,19 @@
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
+                    'Accept': 'application/json',
                 },
                 body: JSON.stringify(tenantData)
             })
             .then(response => {
                 console.log('Response status:', response.status);
+                console.log('Content-Type:', response.headers.get('Content-Type'));
+                console.log('Content-Encoding:', response.headers.get('Content-Encoding'));
+                if (!response.ok) {
+                    return response.text().then(text => {
+                        throw new Error(text || `HTTP ${response.status}`);
+                    });
+                }
                 return response.json();
             })
             .then(result => {
@@ -552,6 +636,21 @@
                 return;
             }
 
+            // Find and disable the verify button to prevent double-clicks
+            // Find button by looking for the one that contains this transaction ID in its onclick
+            const allButtons = document.querySelectorAll('button.btn-success');
+            let verifyButton = null;
+            for (let btn of allButtons) {
+                if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(transactionID)) {
+                    verifyButton = btn;
+                    break;
+                }
+            }
+            if (verifyButton) {
+                verifyButton.disabled = true;
+                verifyButton.textContent = 'Verifying...';
+            }
+
             const verifyData = {
                 transaction_id: transactionID,
                 amount: amount
@@ -564,17 +663,38 @@
                 },
                 body: JSON.stringify(verifyData)
             })
-            .then(response => response.json())
+            .then(response => {
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    if (response.redirected || response.status === 401 || response.status === 403) {
+                        alert('Session expired. Please login again.');
+                        window.location.href = '/login';
+                        return;
+                    }
+                    return response.text().then(text => {
+                        throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
                     alert('Transaction verified successfully! Payment updated.');
                     location.reload();
                 } else {
-                    alert('Error: ' + (data.error || data.message));
+                    alert('Error: ' + (data.error || data.message || 'Unknown error'));
+                    if (verifyButton) {
+                        verifyButton.disabled = false;
+                        verifyButton.textContent = 'Verify';
+                    }
                 }
             })
             .catch(error => {
                 alert('Error: ' + error.message);
+                if (verifyButton) {
+                    verifyButton.disabled = false;
+                    verifyButton.textContent = 'Verify';
+                }
             });
         }
 
@@ -919,6 +1039,132 @@
         }
         
         const firstValid = getFirstValidPaymentMonthYear();
+        
+        // Payment filtering function
+        function filterPayments() {
+            const filter = document.getElementById('paymentFilter').value;
+            const paymentItems = document.querySelectorAll('.payment-item[data-payment-label]');
+            
+            paymentItems.forEach(item => {
+                const label = item.getAttribute('data-payment-label');
+                if (filter === 'all' || label === filter) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+        }
+        
+        // Add Payment form submission
+        function handleAddPayment(e) {
+            e.preventDefault();
+            const form = document.getElementById('addPaymentForm');
+            const formData = new FormData(form);
+            
+            const paymentData = {
+                tenant_id: {{.Tenant.ID}},
+                unit_id: {{.Unit.ID}},
+                label: formData.get('paymentType'),
+                amount: parseInt(formData.get('amount')),
+                due_date: formData.get('dueDate'),
+                notes: formData.get('notes') || ''
+            };
+            
+            if (!paymentData.amount || paymentData.amount <= 0) {
+                alert('Please enter a valid amount greater than 0');
+                return;
+            }
+            
+            if (!paymentData.due_date) {
+                alert('Please select a due date');
+                return;
+            }
+            
+            fetch('/api/payments/create', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(paymentData)
+            })
+            .then(response => {
+                // Check if response is JSON
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    // If not JSON, likely a redirect (e.g., to login page)
+                    if (response.redirected || response.status === 401 || response.status === 403) {
+                        alert('Session expired. Please login again.');
+                        window.location.href = '/login';
+                        return;
+                    }
+                    return response.text().then(text => {
+                        throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+                    });
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data && data.success) {
+                    alert('Payment created successfully!');
+                    closeModal('addPaymentModal');
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data?.error || data?.message || 'Unknown error'));
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+        
+        // Initialize add payment form
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('addPaymentForm');
+            if (form) {
+                form.addEventListener('submit', handleAddPayment);
+            }
+        });
+    </script>
+    {{end}}
+    
+    <!-- Add Payment Modal -->
+    {{if .Tenant}}
+    <div id="addPaymentModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeModal('addPaymentModal')">&times;</span>
+            <h2>Add New Payment</h2>
+            <form id="addPaymentForm" onsubmit="return false;">
+                <div class="form-group">
+                    <label for="paymentType">Payment Type *</label>
+                    <select id="paymentType" name="paymentType" required>
+                        <option value="rent">Rent</option>
+                        <option value="water_bill">Water Bill</option>
+                        <option value="current_bill">Current Bill</option>
+                        <option value="maintenance">Maintenance</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="amount">Amount (₹) *</label>
+                    <input type="number" id="amount" name="amount" min="1" required placeholder="Enter amount">
+                </div>
+                <div class="form-group">
+                    <label for="dueDate">Due Date *</label>
+                    <input type="date" id="dueDate" name="dueDate" required>
+                </div>
+                <div class="form-group">
+                    <label for="notes">Notes (optional)</label>
+                    <input type="text" id="notes" name="notes" placeholder="Additional notes">
+                </div>
+                <button type="submit" class="btn" style="width: 100%;">Create Payment</button>
+            </form>
+        </div>
+    </div>
+    <script>
+        // Set today's date as default for due date
+        const dueDateInput = document.getElementById('dueDate');
+        if (dueDateInput) {
+            dueDateInput.value = new Date().toISOString().split('T')[0];
+        }
     </script>
     {{end}}
 </body>

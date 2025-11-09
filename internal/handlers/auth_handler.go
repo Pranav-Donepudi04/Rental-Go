@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"backend-form/m/internal/metrics"
 	"backend-form/m/internal/service"
 	"encoding/json"
 	"html/template"
@@ -9,18 +10,40 @@ import (
 )
 
 type AuthHandler struct {
-	auth       *service.AuthService
-	templates  *template.Template
-	cookieName string
+	auth           *service.AuthService
+	templates      *template.Template
+	cookieName     string
+	cookieSecure   bool
+	cookieSameSite http.SameSite
 }
 
-func NewAuthHandler(auth *service.AuthService, templates *template.Template, cookieName string) *AuthHandler {
-	return &AuthHandler{auth: auth, templates: templates, cookieName: cookieName}
+func NewAuthHandler(auth *service.AuthService, templates *template.Template, cookieName string, cookieSecure bool, cookieSameSite string) *AuthHandler {
+	sameSite := http.SameSiteStrictMode
+	switch cookieSameSite {
+	case "Lax":
+		sameSite = http.SameSiteLaxMode
+	case "None":
+		sameSite = http.SameSiteNoneMode
+	default:
+		sameSite = http.SameSiteStrictMode
+	}
+	return &AuthHandler{
+		auth:           auth,
+		templates:      templates,
+		cookieName:     cookieName,
+		cookieSecure:   cookieSecure,
+		cookieSameSite: sameSite,
+	}
 }
 
 // GetAuthService returns the auth service for external access
 func (h *AuthHandler) GetAuthService() *service.AuthService {
 	return h.auth
+}
+
+// GetCookieName returns the cookie name for session management
+func (h *AuthHandler) GetCookieName() string {
+	return h.cookieName
 }
 
 func (h *AuthHandler) LoginPage(w http.ResponseWriter, r *http.Request) {
@@ -43,14 +66,24 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	sess, user, err := h.auth.Login(body.Phone, body.Password)
 	if err != nil {
+		metrics.GetMetrics().IncrementLoginFailure()
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return
 	}
+	metrics.GetMetrics().IncrementLogin()
 	if body.Role != "" && body.Role != string(user.UserType) {
 		http.Error(w, "invalid role", http.StatusUnauthorized)
 		return
 	}
-	http.SetCookie(w, &http.Cookie{Name: h.cookieName, Value: sess.Token, Path: "/", HttpOnly: true, Expires: sess.ExpiresAt})
+	http.SetCookie(w, &http.Cookie{
+		Name:     h.cookieName,
+		Value:    sess.Token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: h.cookieSameSite,
+		Expires:  sess.ExpiresAt,
+	})
 	if user.UserType == "owner" {
 		http.Redirect(w, r, "/dashboard", http.StatusSeeOther)
 		return
@@ -67,6 +100,14 @@ func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	if err == nil {
 		_ = h.auth.Logout(c.Value)
 	}
-	http.SetCookie(w, &http.Cookie{Name: h.cookieName, Value: "", Path: "/", Expires: time.Unix(0, 0)})
+	http.SetCookie(w, &http.Cookie{
+		Name:     h.cookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   h.cookieSecure,
+		SameSite: h.cookieSameSite,
+		Expires:  time.Unix(0, 0),
+	})
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

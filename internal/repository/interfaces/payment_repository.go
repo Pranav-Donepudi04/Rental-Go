@@ -24,6 +24,9 @@ type PaymentRepository interface {
 	GetTransactionByID(transactionID string) (*domain.PaymentTransaction, error)
 	GetPendingVerifications(tenantID int) ([]*domain.PaymentTransaction, error)
 	VerifyTransaction(transactionID string, amount int, verifiedByUserID int) error
+	VerifyTransactionRecord(transactionID string, amount int, verifiedByUserID int, verifiedAt time.Time) error
+	ApplyPaymentAllocation(paymentID int, amount int, allocationTime time.Time) error
+	ApplySmartAllocation(transactionID string, amount int, verifiedByUserID int, allocations map[int]int, allocationTime time.Time) error
 	RejectTransaction(transactionID string) error
 
 	// NEW: Auto-create helpers

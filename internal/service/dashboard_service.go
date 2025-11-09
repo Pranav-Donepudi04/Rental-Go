@@ -1,8 +1,10 @@
 package service
 
 import (
+	"backend-form/m/internal/cache"
 	"backend-form/m/internal/domain"
 	"fmt"
+	"time"
 )
 
 // DashboardService handles dashboard data aggregation
@@ -11,6 +13,7 @@ type DashboardService struct {
 	unitService         *UnitService
 	tenantService       *TenantService
 	paymentQueryService *PaymentQueryService
+	cache               *cache.Cache
 }
 
 // NewDashboardService creates a new DashboardService
@@ -19,10 +22,12 @@ func NewDashboardService(
 	tenantService *TenantService,
 	paymentQueryService *PaymentQueryService,
 ) *DashboardService {
+	// Cache dashboard data for 30 seconds
 	return &DashboardService{
 		unitService:         unitService,
 		tenantService:       tenantService,
 		paymentQueryService: paymentQueryService,
+		cache:               cache.NewCache(30 * time.Second),
 	}
 }
 
@@ -36,7 +41,16 @@ type DashboardData struct {
 }
 
 // GetDashboardData returns all data needed for the dashboard page
+// Results are cached for 30 seconds to reduce database load
 func (s *DashboardService) GetDashboardData() (*DashboardData, error) {
+	// Check cache first
+	if cached, found := s.cache.Get("dashboard_data"); found {
+		if data, ok := cached.(*DashboardData); ok {
+			return data, nil
+		}
+	}
+
+	// Cache miss - load from database
 	units, err := s.unitService.GetAllUnits()
 	if err != nil {
 		return nil, fmt.Errorf("get units: %w", err)
@@ -62,13 +76,24 @@ func (s *DashboardService) GetDashboardData() (*DashboardData, error) {
 		return nil, fmt.Errorf("get payment summary: %w", err)
 	}
 
-	return &DashboardData{
+	data := &DashboardData{
 		Units:          units,
 		Tenants:        tenants,
 		Payments:       payments,
 		UnitSummary:    unitSummary,
 		PaymentSummary: paymentSummary,
-	}, nil
+	}
+
+	// Store in cache
+	s.cache.Set("dashboard_data", data)
+
+	return data, nil
+}
+
+// InvalidateDashboardCache clears the dashboard cache
+// Call this when dashboard data changes (e.g., new tenant, payment update)
+func (s *DashboardService) InvalidateDashboardCache() {
+	s.cache.Delete("dashboard_data")
 }
 
 // DashboardSummary represents just the summary data (for JSON API)

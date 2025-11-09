@@ -5,6 +5,8 @@ import (
 	"backend-form/m/internal/repository/interfaces"
 	"database/sql"
 	"fmt"
+
+	"github.com/lib/pq"
 )
 
 // PostgresUnitRepository implements UnitRepository interface
@@ -118,6 +120,54 @@ func (r *PostgresUnitRepository) GetUnitByCode(code string) (*domain.Unit, error
 	}
 
 	return unit, nil
+}
+
+// GetUnitsByIDs returns units by their IDs in a map for efficient lookup (fixes N+1 queries)
+func (r *PostgresUnitRepository) GetUnitsByIDs(ids []int) (map[int]*domain.Unit, error) {
+	if len(ids) == 0 {
+		return make(map[int]*domain.Unit), nil
+	}
+
+	// Build query with IN clause using PostgreSQL array
+	query := `
+		SELECT id, unit_code, floor, unit_type, monthly_rent, security_deposit, 
+		       payment_due_day, is_occupied, created_at
+		FROM units
+		WHERE id = ANY($1)
+		ORDER BY id`
+
+	// Convert []int to PostgreSQL array
+	rows, err := r.db.Query(query, pq.Array(ids))
+	if err != nil {
+		return nil, fmt.Errorf("failed to query units by IDs: %w", err)
+	}
+	defer rows.Close()
+
+	units := make(map[int]*domain.Unit)
+	for rows.Next() {
+		unit := &domain.Unit{}
+		err := rows.Scan(
+			&unit.ID,
+			&unit.UnitCode,
+			&unit.Floor,
+			&unit.UnitType,
+			&unit.MonthlyRent,
+			&unit.SecurityDeposit,
+			&unit.PaymentDueDay,
+			&unit.IsOccupied,
+			&unit.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan unit: %w", err)
+		}
+		units[unit.ID] = unit
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating units: %w", err)
+	}
+
+	return units, nil
 }
 
 // UpdateUnitOccupancy updates the occupancy status of a unit

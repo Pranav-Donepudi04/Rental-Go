@@ -114,8 +114,8 @@ func (s *PaymentHistoryService) CreateHistoricalPaidPayment(
 		IsPaid:           true,
 		IsFullyPaid:      true,
 		FullyPaidDate:    &paymentDate,
-		PaymentMethod:    "UPI",
-		UPIID:            "9848790200@ybl",
+		PaymentMethod:    s.paymentService.GetDefaultPaymentMethod(),
+		UPIID:            s.paymentService.GetDefaultUPIID(),
 		Notes:            notes,
 	}
 

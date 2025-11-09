@@ -21,6 +21,7 @@ type Payment struct {
 	PaymentMethod    string     `json:"payment_method" db:"payment_method"`
 	UPIID            string     `json:"upi_id" db:"upi_id"`
 	Notes            string     `json:"notes" db:"notes"`
+	Label            string     `json:"label" db:"label"` // Payment type: rent, water_bill, current_bill, maintenance
 	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
 
 	// Related data (populated by joins)
@@ -28,6 +29,14 @@ type Payment struct {
 	Unit         *Unit                 `json:"unit,omitempty"`
 	Transactions []*PaymentTransaction `json:"transactions,omitempty"`
 }
+
+// Payment label constants
+const (
+	PaymentLabelRent        = "rent"
+	PaymentLabelWaterBill   = "water_bill"
+	PaymentLabelCurrentBill = "current_bill"
+	PaymentLabelMaintenance = "maintenance"
+)
 
 // Validate validates the payment data
 func (p *Payment) Validate() error {
@@ -43,7 +52,36 @@ func (p *Payment) Validate() error {
 	if p.DueDate.IsZero() {
 		return fmt.Errorf("due date is required")
 	}
+	if p.Label == "" {
+		p.Label = PaymentLabelRent // Default to rent if not specified
+	}
+	// Validate label is one of the allowed values
+	validLabels := map[string]bool{
+		PaymentLabelRent:        true,
+		PaymentLabelWaterBill:   true,
+		PaymentLabelCurrentBill: true,
+		PaymentLabelMaintenance: true,
+	}
+	if !validLabels[p.Label] {
+		return fmt.Errorf("invalid payment label: %s. Must be one of: rent, water_bill, current_bill, maintenance", p.Label)
+	}
 	return nil
+}
+
+// GetLabelDisplayName returns a human-readable label name
+func (p *Payment) GetLabelDisplayName() string {
+	switch p.Label {
+	case PaymentLabelRent:
+		return "Rent"
+	case PaymentLabelWaterBill:
+		return "Water Bill"
+	case PaymentLabelCurrentBill:
+		return "Current Bill"
+	case PaymentLabelMaintenance:
+		return "Maintenance"
+	default:
+		return p.Label
+	}
 }
 
 // GetStatus returns the payment status as a string

@@ -37,23 +37,10 @@ func (h *TenantHandler) Me(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	c, err := r.Cookie(h.cookieName)
-	if err != nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-	sess, err := h.auth.ValidateSession(c.Value)
-	if err != nil {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-	// Resolve user and tenant id
-	user, err := h.users.GetByID(sess.UserID)
-	if err != nil {
-		http.Error(w, "Failed to get user: "+err.Error(), http.StatusInternalServerError)
-		return
-	}
-	if user == nil {
+	// Get user from context (already validated by middleware)
+	// Uses the same string key that router middleware uses
+	user, ok := r.Context().Value("user").(*domain.User)
+	if !ok || user == nil {
 		http.Error(w, "User not found", http.StatusNotFound)
 		return
 	}
@@ -89,40 +76,80 @@ func (h *TenantHandler) Me(w http.ResponseWriter, r *http.Request) {
 
 func (h *TenantHandler) SubmitPayment(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
 		return
 	}
-	c, err := r.Cookie(h.cookieName)
-	if err != nil {
-		http.Error(w, "no cookie", http.StatusUnauthorized)
+	// Get user from context (already validated by middleware)
+	// Uses the same string key that router middleware uses
+	user, ok := r.Context().Value("user").(*domain.User)
+	if !ok || user == nil || user.TenantID == nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Unauthorized",
+		})
 		return
 	}
-	sess, err := h.auth.ValidateSession(c.Value)
-	if err != nil {
-		http.Error(w, "invalid session", http.StatusUnauthorized)
-		return
-	}
-	if sess == nil {
-		http.Error(w, "session expired", http.StatusUnauthorized)
-		return
-	}
-	// For simplicity use form value "txn_id"
+	// Parse form values
 	if err := r.ParseForm(); err != nil {
-		http.Error(w, "bad request", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Bad request",
+		})
 		return
 	}
 	txn := r.FormValue("txn_id")
+	amountStr := r.FormValue("amount")
+
 	if txn == "" {
-		http.Error(w, "txn_id required", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Transaction ID is required",
+		})
 		return
 	}
-	user, err := h.users.GetByID(sess.UserID)
-	if err != nil || user == nil || user.TenantID == nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+
+	// Amount is required - validate it
+	if amountStr == "" {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Amount is required",
+		})
 		return
 	}
-	if err := h.paymentTransactionService.SubmitPaymentIntent(*user.TenantID, txn); err != nil {
-		http.Error(w, "failed", http.StatusBadRequest)
+
+	var amount int
+	if _, err := fmt.Sscanf(amountStr, "%d", &amount); err != nil || amount <= 0 {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Amount must be a positive number",
+		})
+		return
+	}
+
+	suggestedAmount := &amount
+
+	if err := h.paymentTransactionService.SubmitPaymentIntent(*user.TenantID, txn, suggestedAmount); err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -130,17 +157,24 @@ func (h *TenantHandler) SubmitPayment(w http.ResponseWriter, r *http.Request) {
 
 func (h *TenantHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Method not allowed",
+		})
 		return
 	}
-	c, err := r.Cookie(h.cookieName)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	sess, err := h.auth.ValidateSession(c.Value)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	// Get user from context (already validated by middleware)
+	// Uses the same string key that router middleware uses
+	user, ok := r.Context().Value("user").(*domain.User)
+	if !ok || user == nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Unauthorized",
+		})
 		return
 	}
 	var body struct {
@@ -148,28 +182,56 @@ func (h *TenantHandler) ChangePassword(w http.ResponseWriter, r *http.Request) {
 		NewPassword string `json:"new_password"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "invalid body", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Invalid JSON body",
+		})
 		return
 	}
-	if len(body.NewPassword) < 6 {
-		http.Error(w, "password too short", http.StatusBadRequest)
-		return
-	}
-	user, err := h.users.GetByID(sess.UserID)
-	if err != nil || user == nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
+	if err := h.auth.ValidatePasswordStrength(body.NewPassword); err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
 		return
 	}
 	if !h.auth.ComparePassword(user.PasswordHash, body.OldPassword) {
-		http.Error(w, "old password incorrect", http.StatusBadRequest)
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Old password is incorrect",
+		})
 		return
 	}
-	if err := h.users.UpdatePassword(user.ID, h.auth.HashPassword(body.NewPassword)); err != nil {
-		http.Error(w, "failed to update", http.StatusInternalServerError)
+	hashedPassword, err := h.auth.HashPassword(body.NewPassword)
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to hash password",
+		})
 		return
 	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]any{"success": true})
+	if err := h.users.UpdatePassword(user.ID, hashedPassword); err != nil {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "Failed to update password",
+		})
+		return
+	}
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"message": "Password updated successfully",
+	})
 }
 
 // AddFamilyMember handles adding a family member (tenant only)
@@ -178,18 +240,10 @@ func (h *TenantHandler) AddFamilyMember(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	c, err := r.Cookie(h.cookieName)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	sess, err := h.auth.ValidateSession(c.Value)
-	if err != nil {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	user, err := h.users.GetByID(sess.UserID)
-	if err != nil || user == nil || user.TenantID == nil {
+	// Get user from context (already validated by middleware)
+	// Uses the same string key that router middleware uses
+	user, ok := r.Context().Value("user").(*domain.User)
+	if !ok || user == nil || user.TenantID == nil {
 		http.Error(w, "unauthorized", http.StatusUnauthorized)
 		return
 	}

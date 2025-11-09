@@ -310,6 +310,180 @@ func (r *PostgresPaymentRepository) VerifyTransaction(transactionID string, amou
 	return nil
 }
 
+// VerifyTransactionRecord updates only the transaction record (without updating payment)
+// Used for smart allocation where payment updates are handled separately
+func (r *PostgresPaymentRepository) VerifyTransactionRecord(transactionID string, amount int, verifiedByUserID int, verifiedAt time.Time) error {
+	// Check if transaction exists and is not already verified
+	var currentAmount sql.NullInt64
+	err := r.db.QueryRow(`
+		SELECT amount 
+		FROM payment_transactions 
+		WHERE transaction_id = $1`,
+		transactionID,
+	).Scan(&currentAmount)
+
+	if err != nil {
+		return fmt.Errorf("transaction not found: %w", err)
+	}
+
+	// Check if already verified
+	if currentAmount.Valid {
+		return fmt.Errorf("transaction already verified")
+	}
+
+	// Update transaction record only
+	_, err = r.db.Exec(`
+		UPDATE payment_transactions 
+		SET amount = $1, verified_at = $2, verified_by_user_id = $3
+		WHERE transaction_id = $4`,
+		amount, verifiedAt, verifiedByUserID, transactionID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update transaction record: %w", err)
+	}
+
+	return nil
+}
+
+// ApplyPaymentAllocation applies a payment allocation to a specific payment
+// This updates amount_paid, remaining_balance, and is_fully_paid status
+// Note: This should be called within a transaction for multi-payment allocations
+func (r *PostgresPaymentRepository) ApplyPaymentAllocation(paymentID int, amount int, allocationTime time.Time) error {
+	// Get current payment state
+	var currentAmountPaid int
+	var paymentAmount int
+	err := r.db.QueryRow(`
+		SELECT amount, amount_paid 
+		FROM payments 
+		WHERE id = $1`,
+		paymentID,
+	).Scan(&paymentAmount, &currentAmountPaid)
+
+	if err != nil {
+		return fmt.Errorf("payment not found: %w", err)
+	}
+
+	// Calculate new values
+	newAmountPaid := currentAmountPaid + amount
+	newRemainingBalance := paymentAmount - newAmountPaid
+	isFullyPaid := newRemainingBalance <= 0
+
+	// Update payment
+	_, err = r.db.Exec(`
+		UPDATE payments 
+		SET amount_paid = $1,
+		    remaining_balance = $2,
+		    is_fully_paid = $3,
+		    fully_paid_date = CASE 
+		        WHEN $3 = TRUE AND fully_paid_date IS NULL THEN $4
+		        ELSE fully_paid_date
+		    END
+		WHERE id = $5`,
+		newAmountPaid, newRemainingBalance, isFullyPaid, allocationTime, paymentID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update payment: %w", err)
+	}
+
+	return nil
+}
+
+// ApplySmartAllocation applies payment allocations across multiple payments in a single transaction
+// allocations is a map of paymentID -> amount to allocate
+func (r *PostgresPaymentRepository) ApplySmartAllocation(transactionID string, amount int, verifiedByUserID int, allocations map[int]int, allocationTime time.Time) error {
+	// Use a single transaction for all operations
+	dbTx, err := r.db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer dbTx.Rollback()
+
+	// First, verify the transaction record with row-level lock to prevent race conditions
+	var currentAmount sql.NullInt64
+	var verifiedAt sql.NullTime
+	err = dbTx.QueryRow(`
+		SELECT amount, verified_at 
+		FROM payment_transactions 
+		WHERE transaction_id = $1
+		FOR UPDATE`,
+		transactionID,
+	).Scan(&currentAmount, &verifiedAt)
+
+	if err != nil {
+		return fmt.Errorf("transaction not found: %w", err)
+	}
+
+	// Check if already verified (check both amount and verified_at for safety)
+	if currentAmount.Valid || verifiedAt.Valid {
+		amountStr := "not set"
+		if currentAmount.Valid {
+			amountStr = fmt.Sprintf("₹%d", currentAmount.Int64)
+		}
+		verifiedAtStr := "not set"
+		if verifiedAt.Valid {
+			verifiedAtStr = verifiedAt.Time.Format("Jan 2, 2006 3:04 PM")
+		}
+		return fmt.Errorf("transaction already verified (amount: %s, verified_at: %s). Please refresh the page to see the updated status", amountStr, verifiedAtStr)
+	}
+
+	// Update transaction record
+	_, err = dbTx.Exec(`
+		UPDATE payment_transactions 
+		SET amount = $1, verified_at = $2, verified_by_user_id = $3
+		WHERE transaction_id = $4`,
+		amount, allocationTime, verifiedByUserID, transactionID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update transaction record: %w", err)
+	}
+
+	// Apply allocations to each payment
+	for paymentID, allocAmount := range allocations {
+		// Get current payment state
+		var currentAmountPaid int
+		var paymentAmount int
+		err = dbTx.QueryRow(`
+			SELECT amount, amount_paid 
+			FROM payments 
+			WHERE id = $1`,
+			paymentID,
+		).Scan(&paymentAmount, &currentAmountPaid)
+
+		if err != nil {
+			return fmt.Errorf("payment %d not found: %w", paymentID, err)
+		}
+
+		// Calculate new values
+		newAmountPaid := currentAmountPaid + allocAmount
+		newRemainingBalance := paymentAmount - newAmountPaid
+		isFullyPaid := newRemainingBalance <= 0
+
+		// Update payment
+		_, err = dbTx.Exec(`
+			UPDATE payments 
+			SET amount_paid = $1,
+			    remaining_balance = $2,
+			    is_fully_paid = $3,
+			    fully_paid_date = CASE 
+			        WHEN $3 = TRUE AND fully_paid_date IS NULL THEN $4
+			        ELSE fully_paid_date
+			    END
+			WHERE id = $5`,
+			newAmountPaid, newRemainingBalance, isFullyPaid, allocationTime, paymentID,
+		)
+		if err != nil {
+			return fmt.Errorf("failed to update payment %d: %w", paymentID, err)
+		}
+	}
+
+	// Commit all changes atomically
+	if err = dbTx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // RejectTransaction deletes a pending transaction (rejects it)
 func (r *PostgresPaymentRepository) RejectTransaction(transactionID string) error {
 	// Check if transaction exists and is not verified
@@ -403,7 +577,7 @@ func (r *PostgresPaymentRepository) GetLatestPaymentByTenantID(tenantID int) (*d
 func (r *PostgresPaymentRepository) GetUnpaidPaymentsByTenantID(tenantID int) ([]*domain.Payment, error) {
 	query := `
 		SELECT id, tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
-		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, created_at
+		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, label, created_at
 		FROM payments
 		WHERE tenant_id = $1 AND is_fully_paid = FALSE
 		ORDER BY due_date ASC`
@@ -435,6 +609,7 @@ func (r *PostgresPaymentRepository) GetUnpaidPaymentsByTenantID(tenantID int) ([
 			&payment.PaymentMethod,
 			&payment.UPIID,
 			&payment.Notes,
+			&payment.Label,
 			&payment.CreatedAt,
 		)
 		if err != nil {
@@ -466,7 +641,7 @@ func (r *PostgresPaymentRepository) GetUnpaidPaymentsByDueDate(dueDate time.Time
 
 	query := `
 		SELECT id, tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
-		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, created_at
+		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, label, created_at
 		FROM payments
 		WHERE is_fully_paid = FALSE 
 		  AND due_date >= $1 
@@ -500,6 +675,7 @@ func (r *PostgresPaymentRepository) GetUnpaidPaymentsByDueDate(dueDate time.Time
 			&payment.PaymentMethod,
 			&payment.UPIID,
 			&payment.Notes,
+			&payment.Label,
 			&payment.CreatedAt,
 		)
 		if err != nil {

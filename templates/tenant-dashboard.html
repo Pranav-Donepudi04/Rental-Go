@@ -45,12 +45,24 @@
         <div class="content-grid">
             <div class="card">
                 <h2>Payments</h2>
+                <!-- Payment Type Filter -->
+                <div style="margin-bottom: 15px;">
+                    <label for="paymentFilter" style="display: block; margin-bottom: 8px; font-weight: bold; color: #2c3e50; font-size: 0.9em;">Filter by Payment Type:</label>
+                    <select id="paymentFilter" onchange="filterPayments()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 0.95em; width: 200px;">
+                        <option value="rent" selected>Rent</option>
+                        <option value="water_bill">Water Bill</option>
+                        <option value="current_bill">Current Bill</option>
+                        <option value="maintenance">Maintenance</option>
+                        <option value="all">All Types</option>
+                    </select>
+                </div>
+                <div id="paymentList">
                 {{if .Payments}}
                 <ul class="list">
                     {{range .Payments}}
-                    <li class="payment-item {{if .IsFullyPaid}}paid{{else if eq .GetUserFacingStatus "Overdue"}}overdue{{end}}">
+                    <li class="payment-item {{if .IsFullyPaid}}paid{{else if eq .GetUserFacingStatus "Overdue"}}overdue{{end}}" data-payment-label="{{.Label}}">
                         <div style="flex: 1;">
-                            <div><strong>{{.GetFormattedAmount}}</strong> • Due: {{.GetFormattedDueDate}}</div>
+                            <div><strong>{{.GetLabelDisplayName}}</strong> • <strong>{{.GetFormattedAmount}}</strong> • Due: {{.GetFormattedDueDate}}</div>
                             <div class="muted" style="margin-top: 5px;">
                                 <strong>Status:</strong> {{.GetUserFacingStatus}}
                             </div>
@@ -76,9 +88,12 @@
                 {{else}}
                 <div class="muted">No payments to show yet.</div>
                 {{end}}
+                </div>
                 <form id="txnForm" method="post" action="/api/payments/submit">
-                    <label>Enter UPI Transaction ID</label>
-                    <input name="txn_id" placeholder="e.g., 2349ABCD..." />
+                    <label>Enter UPI Transaction ID *</label>
+                    <input name="txn_id" placeholder="e.g., 2349ABCD..." required />
+                    <label>Enter Amount (₹) *</label>
+                    <input name="amount" type="number" min="1" placeholder="e.g., 600" required />
                     <button class="btn" type="submit">Submit Payment</button>
                 </form>
             </div>
@@ -139,13 +154,71 @@
     </div>
 
     <script>
+    // Payment filtering function
+    function filterPayments() {
+        const filter = document.getElementById('paymentFilter').value;
+        const paymentItems = document.querySelectorAll('.payment-item[data-payment-label]');
+        
+        paymentItems.forEach(item => {
+            const label = item.getAttribute('data-payment-label');
+            if (filter === 'all' || label === filter) {
+                item.style.display = 'flex';
+            } else {
+                item.style.display = 'none';
+            }
+        });
+    }
+    
+    // Initialize filter on page load (default to rent)
+    document.addEventListener('DOMContentLoaded', function() {
+        const filter = document.getElementById('paymentFilter');
+        if (filter) {
+            filter.value = 'rent'; // Default to rent
+            filterPayments(); // Apply filter
+        }
+    });
+    
     function submitChangePassword(e){
         e.preventDefault();
-        const body = { old_password: document.getElementById('oldPass').value, new_password: document.getElementById('newPass').value };
-        fetch('/api/me/change-password', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) })
-        .then(r=>{ if(!r.ok) throw new Error('Failed'); return r.json(); })
-        .then(_=>{ alert('Password updated. Please use the new password next time.'); document.getElementById('changePassForm').reset(); })
-        .catch(_=> alert('Failed to update password.'));
+        const oldPass = document.getElementById('oldPass').value;
+        const newPass = document.getElementById('newPass').value;
+        
+        if (!oldPass || !newPass) {
+            alert('Please fill in both old and new password fields.');
+            return false;
+        }
+        
+        const body = { old_password: oldPass, new_password: newPass };
+        fetch('/api/me/change-password', { 
+            method:'POST', 
+            headers:{'Content-Type':'application/json'}, 
+            body: JSON.stringify(body) 
+        })
+        .then(response => {
+            const contentType = response.headers.get('content-type');
+            if (!contentType || !contentType.includes('application/json')) {
+                if (response.redirected || response.status === 401 || response.status === 403) {
+                    alert('Session expired. Please login again.');
+                    window.location.href = '/login';
+                    return;
+                }
+                return response.text().then(text => {
+                    throw new Error('Server returned non-JSON response: ' + text.substring(0, 100));
+                });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data && data.success) {
+                alert('Password updated successfully! Please use the new password next time.');
+                document.getElementById('changePassForm').reset();
+            } else {
+                alert('Failed to update password: ' + (data?.error || 'Unknown error'));
+            }
+        })
+        .catch(error => {
+            alert('Error: ' + error.message);
+        });
         return false;
     }
 
@@ -163,13 +236,44 @@
                 headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
                 body: data.toString()
             }).then(r=>{
+                const contentType = r.headers.get('content-type');
+                
+                // Handle successful submission (204 No Content)
                 if (r.status === 204) { 
                     alert('Transaction ID submitted successfully! Owner will verify the amount and update your payment.'); 
                     f.reset();
                     location.reload(); 
                     return; 
                 }
-                return r.text().then(text => { throw new Error(text || 'Failed'); });
+                
+                // Check for redirects (session expired)
+                if (r.redirected || r.status === 401 || r.status === 403) {
+                    alert('Session expired. Please login again.');
+                    window.location.href = '/login';
+                    return;
+                }
+                
+                // Try to parse as JSON if content-type indicates JSON
+                if (contentType && contentType.includes('application/json')) {
+                    return r.json().then(data => {
+                        if (data.success) {
+                            alert('Transaction ID submitted successfully!');
+                            f.reset();
+                            location.reload();
+                        } else {
+                            throw new Error(data.error || data.message || 'Unknown error');
+                        }
+                    });
+                }
+                
+                // If not JSON, try to get text but limit length
+                return r.text().then(text => {
+                    // If it looks like HTML, provide a better error message
+                    if (text.trim().startsWith('<!DOCTYPE') || text.trim().startsWith('<html')) {
+                        throw new Error('Server returned an error page. Please check your session and try again.');
+                    }
+                    throw new Error(text.substring(0, 200) || 'Failed to submit transaction');
+                });
             }).catch(err=>{
                 alert('Failed to submit: ' + err.message);
                 if (btn) btn.disabled = false;

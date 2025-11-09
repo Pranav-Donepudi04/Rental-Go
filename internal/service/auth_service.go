@@ -8,7 +8,10 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"golang.org/x/crypto/bcrypt"
 )
 
 type AuthService struct {
@@ -21,13 +24,85 @@ func NewAuthService(users interfaces.UserRepository, sessions interfaces.Session
 	return &AuthService{users: users, sessions: sessions, sessionTTL: sessionTTL}
 }
 
-func (s *AuthService) HashPassword(plain string) string {
+// HashPassword hashes a password using bcrypt (production-ready)
+// Cost factor of 10 provides good security/performance balance
+func (s *AuthService) HashPassword(plain string) (string, error) {
+	hash, err := bcrypt.GenerateFromPassword([]byte(plain), bcrypt.DefaultCost)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err)
+	}
+	return string(hash), nil
+}
+
+// hashSHA256 is a legacy method kept only for backward compatibility during migration
+// DO NOT USE for new passwords - use HashPassword instead
+func (s *AuthService) hashSHA256(plain string) string {
 	sum := sha256.Sum256([]byte(plain))
 	return hex.EncodeToString(sum[:])
 }
 
+// isBcryptHash checks if a hash is a bcrypt hash (starts with $2a$, $2b$, or $2y$)
+func (s *AuthService) isBcryptHash(hash string) bool {
+	return strings.HasPrefix(hash, "$2a$") || strings.HasPrefix(hash, "$2b$") || strings.HasPrefix(hash, "$2y$")
+}
+
+// ValidatePasswordStrength validates password complexity requirements
+// Returns error if password doesn't meet requirements, nil otherwise
+func (s *AuthService) ValidatePasswordStrength(password string) error {
+	if len(password) < 8 {
+		return fmt.Errorf("password must be at least 8 characters long")
+	}
+
+	hasUpper := false
+	hasLower := false
+	hasNumber := false
+	hasSpecial := false
+
+	for _, char := range password {
+		switch {
+		case char >= 'A' && char <= 'Z':
+			hasUpper = true
+		case char >= 'a' && char <= 'z':
+			hasLower = true
+		case char >= '0' && char <= '9':
+			hasNumber = true
+		case strings.ContainsRune("!@#$%^&*()_+-=[]{}|;:,.<>?", char):
+			hasSpecial = true
+		}
+	}
+
+	var missing []string
+	if !hasUpper {
+		missing = append(missing, "uppercase letter")
+	}
+	if !hasLower {
+		missing = append(missing, "lowercase letter")
+	}
+	if !hasNumber {
+		missing = append(missing, "number")
+	}
+	if !hasSpecial {
+		missing = append(missing, "special character")
+	}
+
+	if len(missing) > 0 {
+		return fmt.Errorf("password must contain at least one: %s", strings.Join(missing, ", "))
+	}
+
+	return nil
+}
+
+// ComparePassword compares a password with a hash, supporting both bcrypt (new) and SHA256 (legacy)
+// Returns true if password matches, false otherwise
 func (s *AuthService) ComparePassword(hash, plain string) bool {
-	return hash == s.HashPassword(plain)
+	// Check if it's a bcrypt hash (new format)
+	if s.isBcryptHash(hash) {
+		err := bcrypt.CompareHashAndPassword([]byte(hash), []byte(plain))
+		return err == nil
+	}
+	// Legacy SHA256 support for backward compatibility
+	sha256Hash := s.hashSHA256(plain)
+	return hash == sha256Hash
 }
 
 func (s *AuthService) GenerateTempPassword() (string, error) {
@@ -54,6 +129,15 @@ func (s *AuthService) Login(phone, password string) (*domain.Session, *domain.Us
 	}
 	if !s.ComparePassword(user.PasswordHash, password) {
 		return nil, nil, errors.New("invalid credentials")
+	}
+
+	// Auto-upgrade legacy SHA256 passwords to bcrypt on successful login
+	if !s.isBcryptHash(user.PasswordHash) {
+		newHash, err := s.HashPassword(password)
+		if err == nil {
+			// Silently upgrade password hash (non-blocking - if it fails, user can still login)
+			_ = s.users.UpdatePassword(user.ID, newHash)
+		}
 	}
 
 	// Clean up expired sessions for this user before creating a new one
@@ -108,7 +192,10 @@ func (s *AuthService) CreateTenantCredentials(phone string, tenantID int) (strin
 	if err != nil {
 		return "", err
 	}
-	hash := s.HashPassword(temp)
+	hash, err := s.HashPassword(temp)
+	if err != nil {
+		return "", fmt.Errorf("failed to hash password: %w", err)
+	}
 	if user == nil {
 		// create new tenant user
 		u := &domain.User{Phone: phone, PasswordHash: hash, UserType: domain.UserTypeTenant, TenantID: &tenantID, IsActive: true}

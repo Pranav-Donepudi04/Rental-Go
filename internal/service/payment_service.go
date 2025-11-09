@@ -9,17 +9,21 @@ import (
 
 // PaymentService handles payment-related business logic
 type PaymentService struct {
-	paymentRepo interfaces.PaymentRepository
-	tenantRepo  interfaces.TenantRepository
-	unitRepo    interfaces.UnitRepository
+	paymentRepo          interfaces.PaymentRepository
+	tenantRepo           interfaces.TenantRepository
+	unitRepo             interfaces.UnitRepository
+	defaultPaymentMethod string
+	defaultUPIID         string
 }
 
 // NewPaymentService creates a new PaymentService
-func NewPaymentService(paymentRepo interfaces.PaymentRepository, tenantRepo interfaces.TenantRepository, unitRepo interfaces.UnitRepository) *PaymentService {
+func NewPaymentService(paymentRepo interfaces.PaymentRepository, tenantRepo interfaces.TenantRepository, unitRepo interfaces.UnitRepository, defaultPaymentMethod, defaultUPIID string) *PaymentService {
 	return &PaymentService{
-		paymentRepo: paymentRepo,
-		tenantRepo:  tenantRepo,
-		unitRepo:    unitRepo,
+		paymentRepo:          paymentRepo,
+		tenantRepo:           tenantRepo,
+		unitRepo:             unitRepo,
+		defaultPaymentMethod: defaultPaymentMethod,
+		defaultUPIID:         defaultUPIID,
 	}
 }
 
@@ -52,8 +56,8 @@ func (s *PaymentService) CreateMonthlyPayment(tenantID int, month time.Month, ye
 		Amount:        unit.MonthlyRent,
 		DueDate:       dueDate,
 		IsPaid:        false,
-		PaymentMethod: "UPI",
-		UPIID:         "9848790200@ybl",
+		PaymentMethod: s.defaultPaymentMethod,
+		UPIID:         s.defaultUPIID,
 	}
 
 	if err := s.paymentRepo.CreatePayment(payment); err != nil {
@@ -158,206 +162,7 @@ func (s *PaymentService) DeletePaymentsByTenantID(tenantID int) error {
 // Payment Status & Queries
 // ============================================
 // NOTE: Query methods have been moved to PaymentQueryService.
-// These methods are kept for backward compatibility and forward to PaymentQueryService.
-// They will be removed in a future version.
-
-// PaymentQueryService is injected for backward compatibility
-// TODO: Remove this after all handlers are migrated
-// var globalPaymentQueryService *PaymentQueryService
-
-// SetPaymentQueryService sets the global query service for backward compatibility
-// This is a temporary solution during migration
-// func SetGlobalPaymentQueryService(queryService *PaymentQueryService) {
-// 	globalPaymentQueryService = queryService
-// }
-
-// GetOverduePayments returns all overdue payments (DEPRECATED - use PaymentQueryService)
-// func (s *PaymentService) GetOverduePayments() ([]*domain.Payment, error) {
-// 	if globalPaymentQueryService != nil {
-// 		return globalPaymentQueryService.GetOverduePayments()
-// 	}
-// 	// Fallback implementation if query service not set
-// 	payments, err := s.paymentRepo.GetAllPayments()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	var overdue []*domain.Payment
-// 	now := time.Now()
-// 	for _, payment := range payments {
-// 		if !payment.IsFullyPaid && now.After(payment.DueDate) {
-// 			overdue = append(overdue, payment)
-// 		}
-// 	}
-// 	return overdue, nil
-// }
-
-// GetPendingPayments returns all pending payments (DEPRECATED - use PaymentQueryService)
-// func (s *PaymentService) GetPendingPayments() ([]*domain.Payment, error) {
-// 	if globalPaymentQueryService != nil {
-// 		return globalPaymentQueryService.GetPendingPayments()
-// 	}
-// 	// Fallback implementation
-// 	payments, err := s.paymentRepo.GetAllPayments()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	var pending []*domain.Payment
-// 	now := time.Now()
-// 	for _, payment := range payments {
-// 		if !payment.IsFullyPaid && now.Before(payment.DueDate) {
-// 			pending = append(pending, payment)
-// 		}
-// 	}
-// 	return pending, nil
-// }
-
-// GetPaymentSummary returns a summary of payments (DEPRECATED - use PaymentQueryService)
-// func (s *PaymentService) GetPaymentSummary() (*PaymentSummary, error) {
-// 	if globalPaymentQueryService != nil {
-// 		return globalPaymentQueryService.GetPaymentSummary()
-// 	}
-// 	// Fallback implementation
-// 	payments, err := s.paymentRepo.GetAllPayments()
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	summary := &PaymentSummary{
-// 		TotalPayments:   len(payments),
-// 		PaidPayments:    0,
-// 		PendingPayments: 0,
-// 		OverduePayments: 0,
-// 		TotalAmount:     0,
-// 		PaidAmount:      0,
-// 		PendingAmount:   0,
-// 		OverdueAmount:   0,
-// 	}
-// 	now := time.Now()
-// 	for _, payment := range payments {
-// 		summary.TotalAmount += payment.Amount
-// 		if payment.IsFullyPaid {
-// 			summary.PaidPayments++
-// 			summary.PaidAmount += payment.Amount
-// 		} else if now.After(payment.DueDate) {
-// 			summary.OverduePayments++
-// 			summary.OverdueAmount += payment.RemainingBalance
-// 		} else {
-// 			summary.PendingPayments++
-// 			summary.PendingAmount += payment.RemainingBalance
-// 		}
-// 	}
-// 	return summary, nil
-// }
-
-// PaymentSummary type is defined in payment_query_service.go
-// Since both services are in the same package, the type is accessible here
-
-// ============================================
-// Payment CRUD Operations
-// ============================================
-
-// GetAllPayments returns all payments (DEPRECATED - use PaymentQueryService)
-// func (s *PaymentService) GetAllPayments() ([]*domain.Payment, error) {
-// 	if globalPaymentQueryService != nil {
-// 		return globalPaymentQueryService.GetAllPayments()
-// 	}
-// 	return s.paymentRepo.GetAllPayments()
-// }
-
-// ============================================
-// Transaction Management
-// ============================================
-// NOTE: Transaction methods have been moved to PaymentTransactionService.
-// These methods are kept for backward compatibility and forward to PaymentTransactionService.
-// They will be removed in a future version.
-
-// globalPaymentTransactionService is injected for backward compatibility
-// TODO: Remove this after all handlers are migrated
-// var globalPaymentTransactionService *PaymentTransactionService
-
-// SetGlobalPaymentTransactionService sets the global transaction service for backward compatibility
-// func SetGlobalPaymentTransactionService(transactionService *PaymentTransactionService) {
-// 	globalPaymentTransactionService = transactionService
-// }
-
-// GetPendingVerifications returns all pending verifications for a tenant (DEPRECATED - use PaymentTransactionService)
-// func (s *PaymentService) GetPendingVerifications(tenantID int) ([]*domain.PaymentTransaction, error) {
-// 	if globalPaymentTransactionService != nil {
-// 		return globalPaymentTransactionService.GetPendingVerifications(tenantID)
-// 	}
-// 	// Fallback implementation
-// 	return s.paymentRepo.GetPendingVerifications(tenantID)
-// }
-
-// SubmitPaymentIntent creates a payment transaction record for a tenant (DEPRECATED - use PaymentTransactionService)
-// func (s *PaymentService) SubmitPaymentIntent(tenantID int, txnID string) error {
-// 	if globalPaymentTransactionService != nil {
-// 		return globalPaymentTransactionService.SubmitPaymentIntent(tenantID, txnID)
-// 	}
-// 	// Fallback implementation
-// 	payment, err := s.getOrCreateCurrentPayment(tenantID)
-// 	if err != nil {
-// 		return fmt.Errorf("get or create payment: %w", err)
-// 	}
-// 	existing, err := s.paymentRepo.GetTransactionByPaymentAndID(payment.ID, txnID)
-// 	if err != nil {
-// 		return fmt.Errorf("check existing transaction: %w", err)
-// 	}
-// 	if existing != nil {
-// 		return nil
-// 	}
-// 	tx := &domain.PaymentTransaction{
-// 		PaymentID:     payment.ID,
-// 		TransactionID: txnID,
-// 		Amount:        nil,
-// 		SubmittedAt:   time.Now(),
-// 	}
-// 	if err := s.paymentRepo.CreatePaymentTransaction(tx); err != nil {
-// 		return fmt.Errorf("create payment transaction: %w", err)
-// 	}
-// 	return nil
-// }
-
-// VerifyTransaction verifies a transaction (DEPRECATED - use PaymentTransactionService)
-// func (s *PaymentService) VerifyTransaction(transactionID string, amount int, verifiedByUserID int) error {
-// 	if globalPaymentTransactionService != nil {
-// 		return globalPaymentTransactionService.VerifyTransaction(transactionID, amount, verifiedByUserID)
-// 	}
-// 	// Fallback implementation
-// 	tx, err := s.paymentRepo.GetTransactionByID(transactionID)
-// 	if err != nil {
-// 		return fmt.Errorf("get transaction: %w", err)
-// 	}
-// 	if tx == nil {
-// 		return fmt.Errorf("transaction not found")
-// 	}
-// 	if err := s.paymentRepo.VerifyTransaction(transactionID, amount, verifiedByUserID); err != nil {
-// 		return fmt.Errorf("verify transaction: %w", err)
-// 	}
-// 	payment, err := s.paymentRepo.GetPaymentByID(tx.PaymentID)
-// 	if err != nil {
-// 		return fmt.Errorf("get updated payment: %w", err)
-// 	}
-// 	if payment.IsFullyPaid {
-// 		return s.AutoCreateNextPayment(payment)
-// 	}
-// 	return nil
-// }
-
-// RejectTransaction rejects a pending transaction (DEPRECATED - use PaymentTransactionService)
-// func (s *PaymentService) RejectTransaction(transactionID string) error {
-// 	if globalPaymentTransactionService != nil {
-// 		return globalPaymentTransactionService.RejectTransaction(transactionID)
-// 	}
-// 	// Fallback implementation
-// 	tx, err := s.paymentRepo.GetTransactionByID(transactionID)
-// 	if err != nil {
-// 		return fmt.Errorf("get transaction: %w", err)
-// 	}
-// 	if tx == nil {
-// 		return fmt.Errorf("transaction not found")
-// 	}
-// 	return s.paymentRepo.RejectTransaction(transactionID)
-// }
+// Use PaymentQueryService for all payment queries.
 
 // getOrCreateCurrentPayment gets the current unpaid payment or creates a new one
 func (s *PaymentService) getOrCreateCurrentPayment(tenantID int) (*domain.Payment, error) {
@@ -417,8 +222,9 @@ func (s *PaymentService) CreatePaymentForTenant(
 		DueDate:          dueDate,
 		IsPaid:           false,
 		IsFullyPaid:      false,
-		PaymentMethod:    "UPI",
-		UPIID:            "9848790200@ybl",
+		PaymentMethod:    s.defaultPaymentMethod,
+		UPIID:            s.defaultUPIID,
+		Label:            domain.PaymentLabelRent, // Auto-created payments are always rent
 	}
 
 	if err := s.paymentRepo.CreatePayment(payment); err != nil {
@@ -426,6 +232,91 @@ func (s *PaymentService) CreatePaymentForTenant(
 	}
 
 	return payment, nil
+}
+
+// CreateCustomPayment creates a payment with custom label (for water bills, current bills, maintenance, etc.)
+func (s *PaymentService) CreateCustomPayment(
+	tenantID int,
+	unitID int,
+	dueDate time.Time,
+	amount int,
+	label string,
+	notes string,
+) (*domain.Payment, error) {
+	// Validate tenant exists
+	tenant, err := s.tenantRepo.GetTenantByID(tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("tenant not found: %w", err)
+	}
+
+	// Validate unit exists
+	_, err = s.unitRepo.GetUnitByID(unitID)
+	if err != nil {
+		return nil, fmt.Errorf("unit not found: %w", err)
+	}
+
+	// Ensure tenant belongs to this unit
+	if tenant.UnitID != unitID {
+		return nil, fmt.Errorf("tenant does not belong to this unit")
+	}
+
+	// Set default label if not provided
+	if label == "" {
+		label = domain.PaymentLabelRent
+	}
+
+	// Check if payment of this type already exists for this month
+	// Only check for non-rent payments (rent is handled by auto-creation logic)
+	if label != domain.PaymentLabelRent {
+		existingPayments, err := s.paymentRepo.GetPaymentsByTenantID(tenantID)
+		if err == nil {
+			paymentMonth := dueDate.Month()
+			paymentYear := dueDate.Year()
+			for _, existing := range existingPayments {
+				if existing.Label == label &&
+					existing.DueDate.Month() == paymentMonth &&
+					existing.DueDate.Year() == paymentYear {
+					return nil, fmt.Errorf("payment of type '%s' already exists for %s %d", label, paymentMonth.String(), paymentYear)
+				}
+			}
+		}
+	}
+
+	payment := &domain.Payment{
+		TenantID:         tenantID,
+		UnitID:           unitID,
+		Amount:           amount,
+		AmountPaid:       0,
+		RemainingBalance: amount,
+		DueDate:          dueDate,
+		IsPaid:           false,
+		IsFullyPaid:      false,
+		PaymentMethod:    s.defaultPaymentMethod,
+		UPIID:            s.defaultUPIID,
+		Label:            label,
+		Notes:            notes,
+	}
+
+	// Validate payment
+	if err := payment.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid payment: %w", err)
+	}
+
+	if err := s.paymentRepo.CreatePayment(payment); err != nil {
+		return nil, fmt.Errorf("failed to create payment: %w", err)
+	}
+
+	return payment, nil
+}
+
+// GetDefaultPaymentMethod returns the default payment method
+func (s *PaymentService) GetDefaultPaymentMethod() string {
+	return s.defaultPaymentMethod
+}
+
+// GetDefaultUPIID returns the default UPI ID
+func (s *PaymentService) GetDefaultUPIID() string {
+	return s.defaultUPIID
 }
 
 // CreateNextPayment creates the next payment for a tenant after current payment is fully paid
@@ -465,50 +356,4 @@ func (s *PaymentService) AutoCreateNextPayment(payment *domain.Payment) error {
 // Historical Payment Management (for Existing Tenants)
 // ============================================
 // NOTE: Historical payment methods have been moved to PaymentHistoryService.
-// These methods are kept for backward compatibility and forward to PaymentHistoryService.
-// They will be removed in a future version.
-
-// globalPaymentHistoryService is injected for backward compatibility
-// TODO: Remove this after all handlers are migrated
-// var globalPaymentHistoryService *PaymentHistoryService
-
-// SetGlobalPaymentHistoryService sets the global history service for backward compatibility
-// func SetGlobalPaymentHistoryService(historyService *PaymentHistoryService) {
-// 	globalPaymentHistoryService = historyService
-// }
-
-// HistoricalPaymentData type is defined in payment_history_service.go
-// Since both services are in the same package, the type is accessible here
-
-// CreateHistoricalPaidPayment creates a payment record for a past month (DEPRECATED - use PaymentHistoryService)
-// func (s *PaymentService) CreateHistoricalPaidPayment(
-// 	tenantID int,
-// 	month time.Month,
-// 	year int,
-// 	paymentDate time.Time,
-// 	notes string,
-// ) (*domain.Payment, error) {
-// 	if globalPaymentHistoryService != nil {
-// 		return globalPaymentHistoryService.CreateHistoricalPaidPayment(tenantID, month, year, paymentDate, notes)
-// 	}
-// 	return nil, fmt.Errorf("PaymentHistoryService not configured")
-// }
-
-// SyncPaymentHistory creates payment records for multiple months (DEPRECATED - use PaymentHistoryService)
-// func (s *PaymentService) SyncPaymentHistory(
-// 	tenantID int,
-// 	payments []HistoricalPaymentData,
-// ) ([]*domain.Payment, error) {
-// 	if globalPaymentHistoryService != nil {
-// 		return globalPaymentHistoryService.SyncPaymentHistory(tenantID, payments)
-// 	}
-// 	return nil, fmt.Errorf("PaymentHistoryService not configured")
-// }
-
-// AdjustFirstPaymentDueDate updates the first unpaid payment's due date (DEPRECATED - use PaymentHistoryService)
-// func (s *PaymentService) AdjustFirstPaymentDueDate(tenantID int, newDueDate time.Time) error {
-// 	if globalPaymentHistoryService != nil {
-// 		return globalPaymentHistoryService.AdjustFirstPaymentDueDate(tenantID, newDueDate)
-// 	}
-// 	return fmt.Errorf("PaymentHistoryService not configured")
-// }
+// Use PaymentHistoryService for all historical payment operations.

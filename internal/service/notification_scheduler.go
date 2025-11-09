@@ -1,8 +1,10 @@
 package service
 
 import (
-	"log"
+	"backend-form/m/internal/logger"
 	"time"
+
+	"go.uber.org/zap"
 )
 
 // NotificationScheduler handles scheduled notification tasks
@@ -57,7 +59,7 @@ func (s *NotificationScheduler) run() {
 		case <-ticker.C:
 			s.checkAndSendReminders()
 		case <-s.stopChan:
-			log.Println("Notification scheduler stopped")
+			logger.Info("Notification scheduler stopped")
 			return
 		}
 	}
@@ -65,10 +67,12 @@ func (s *NotificationScheduler) run() {
 
 // checkAndSendReminders checks and sends due date reminders
 func (s *NotificationScheduler) checkAndSendReminders() {
-	log.Println("Running daily notification check...")
+	logger.Info("Running daily notification check...")
 	if err := s.notificationService.CheckAndSendDueDateReminders(); err != nil {
-		log.Printf("Error checking and sending reminders: %v", err)
+		logger.Error("Error checking and sending reminders",
+			zap.Error(err),
+		)
 	} else {
-		log.Println("Notification check completed successfully")
+		logger.Info("Notification check completed successfully")
 	}
 }

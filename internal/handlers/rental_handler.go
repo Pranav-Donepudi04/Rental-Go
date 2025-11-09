@@ -8,49 +8,101 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"time"
 )
 
-// RentalHandler handles all rental management HTTP requests
-type RentalHandler struct {
+// DashboardHandler handles dashboard and unit-related HTTP requests (owner only)
+type DashboardHandler struct {
 	unitService               *service.UnitService
 	tenantService             *service.TenantService
 	paymentService            *service.PaymentService
-	paymentQueryService       *service.PaymentQueryService
 	paymentTransactionService *service.PaymentTransactionService
-	paymentHistoryService     *service.PaymentHistoryService
 	dashboardService          *service.DashboardService
-	notificationService       *service.NotificationService
 	templates                 *template.Template
-	authService               *service.AuthService
-	userRepo                  interfaces.UserRepository
-	cookieName                string
 }
 
-// NewRentalHandler creates a new RentalHandler
-func NewRentalHandler(unitService *service.UnitService, tenantService *service.TenantService, paymentService *service.PaymentService, paymentQueryService *service.PaymentQueryService, paymentTransactionService *service.PaymentTransactionService, paymentHistoryService *service.PaymentHistoryService, dashboardService *service.DashboardService, notificationService *service.NotificationService, templates *template.Template, auth *service.AuthService) *RentalHandler {
-	return &RentalHandler{
+// NewDashboardHandler creates a new DashboardHandler
+func NewDashboardHandler(
+	unitService *service.UnitService,
+	tenantService *service.TenantService,
+	paymentService *service.PaymentService,
+	paymentTransactionService *service.PaymentTransactionService,
+	dashboardService *service.DashboardService,
+	templates *template.Template,
+) *DashboardHandler {
+	return &DashboardHandler{
 		unitService:               unitService,
 		tenantService:             tenantService,
 		paymentService:            paymentService,
-		paymentQueryService:       paymentQueryService,
 		paymentTransactionService: paymentTransactionService,
-		paymentHistoryService:     paymentHistoryService,
 		dashboardService:          dashboardService,
-		notificationService:       notificationService,
 		templates:                 templates,
-		authService:               auth,
-		cookieName:                "sid",
+	}
+}
+
+// RentalHandler is kept for backward compatibility - delegates to DashboardHandler
+// Deprecated: Use DashboardHandler, PaymentHandler, and TenantManagementHandler instead
+type RentalHandler struct {
+	*DashboardHandler
+	paymentHandler          *PaymentHandler
+	tenantManagementHandler *TenantManagementHandler
+}
+
+// NewRentalHandler creates a new RentalHandler (backward compatibility wrapper)
+func NewRentalHandler(
+	unitService *service.UnitService,
+	tenantService *service.TenantService,
+	paymentService *service.PaymentService,
+	paymentQueryService *service.PaymentQueryService,
+	paymentTransactionService *service.PaymentTransactionService,
+	paymentHistoryService *service.PaymentHistoryService,
+	dashboardService *service.DashboardService,
+	notificationService *service.NotificationService,
+	templates *template.Template,
+	auth *service.AuthService,
+) *RentalHandler {
+	dashboardHandler := NewDashboardHandler(
+		unitService,
+		tenantService,
+		paymentService,
+		paymentTransactionService,
+		dashboardService,
+		templates,
+	)
+
+	paymentHandler := NewPaymentHandler(
+		paymentService,
+		paymentQueryService,
+		paymentTransactionService,
+		paymentHistoryService,
+		dashboardService,
+	)
+
+	tenantManagementHandler := NewTenantManagementHandler(
+		tenantService,
+		auth,
+		dashboardService,
+	)
+
+	return &RentalHandler{
+		DashboardHandler:        dashboardHandler,
+		paymentHandler:          paymentHandler,
+		tenantManagementHandler: tenantManagementHandler,
 	}
 }
 
 // SetUserRepository sets the user repository (called from main.go after creation)
+// Deprecated: No longer needed with new handler structure
 func (h *RentalHandler) SetUserRepository(userRepo interfaces.UserRepository) {
-	h.userRepo = userRepo
+	// No-op for backward compatibility
+}
+
+// Delegation method for backward compatibility
+func (h *RentalHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
+	h.DashboardHandler.Dashboard(w, r)
 }
 
 // Dashboard renders the main dashboard
-func (h *RentalHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
+func (h *DashboardHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -80,8 +132,13 @@ func (h *RentalHandler) Dashboard(w http.ResponseWriter, r *http.Request) {
 
 // API Handlers for JSON responses
 
-// GetUnits returns all units as JSON
+// Delegation method for backward compatibility
 func (h *RentalHandler) GetUnits(w http.ResponseWriter, r *http.Request) {
+	h.DashboardHandler.GetUnits(w, r)
+}
+
+// GetUnits returns all units as JSON
+func (h *DashboardHandler) GetUnits(w http.ResponseWriter, r *http.Request) {
 	units, err := h.unitService.GetAllUnits()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -92,198 +149,58 @@ func (h *RentalHandler) GetUnits(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(units)
 }
 
-// GetTenants returns all tenants as JSON
+// Delegation methods for backward compatibility
 func (h *RentalHandler) GetTenants(w http.ResponseWriter, r *http.Request) {
-	tenants, err := h.tenantService.GetAllTenants()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(tenants)
+	h.tenantManagementHandler.GetTenants(w, r)
 }
 
-// GetPayments returns all payments as JSON
-func (h *RentalHandler) GetPayments(w http.ResponseWriter, r *http.Request) {
-	payments, err := h.paymentQueryService.GetAllPayments()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(payments)
-}
-
-// CreateTenant creates a new tenant
 func (h *RentalHandler) CreateTenant(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var tenant struct {
-		Name             string `json:"name"`
-		Phone            string `json:"phone"`
-		AadharNumber     string `json:"aadhar_number"`
-		MoveInDate       string `json:"move_in_date"`
-		NumberOfPeople   int    `json:"number_of_people"`
-		UnitID           int    `json:"unit_id"`
-		IsExistingTenant bool   `json:"is_existing_tenant"` // If true, skip first payment creation
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&tenant); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	// Parse move-in date
-	moveInDate, err := time.Parse("2006-01-02", tenant.MoveInDate)
-	if err != nil {
-		http.Error(w, "Invalid date format", http.StatusBadRequest)
-		return
-	}
-
-	newTenant := &domain.Tenant{
-		Name:           tenant.Name,
-		Phone:          tenant.Phone,
-		AadharNumber:   tenant.AadharNumber,
-		MoveInDate:     moveInDate,
-		NumberOfPeople: tenant.NumberOfPeople,
-		UnitID:         tenant.UnitID,
-	}
-
-	if err := h.tenantService.CreateTenant(newTenant, tenant.IsExistingTenant); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	// Create login credentials for tenant and return temp password
-	temp, err := h.authService.CreateTenantCredentials(newTenant.Phone, newTenant.ID)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"message": "Tenant created, but failed to create credentials",
-			"tenant":  newTenant,
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":       true,
-		"message":       "Tenant created successfully",
-		"tenant":        newTenant,
-		"temp_password": temp,
-	})
+	h.tenantManagementHandler.CreateTenant(w, r)
 }
 
-// MarkPaymentAsPaid marks a payment as paid (legacy method - supports both old and new flow)
+func (h *RentalHandler) VacateTenant(w http.ResponseWriter, r *http.Request) {
+	h.tenantManagementHandler.VacateTenant(w, r)
+}
+
+func (h *RentalHandler) RegenerateTenantPassword(w http.ResponseWriter, r *http.Request) {
+	h.tenantManagementHandler.RegenerateTenantPassword(w, r)
+}
+
+func (h *RentalHandler) GetPayments(w http.ResponseWriter, r *http.Request) {
+	h.paymentHandler.GetPayments(w, r)
+}
+
 func (h *RentalHandler) MarkPaymentAsPaid(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+	h.paymentHandler.MarkPaymentAsPaid(w, r)
+}
 
-	var req struct {
-		PaymentID     int    `json:"payment_id"`     // For legacy flow
-		TransactionID string `json:"transaction_id"` // For new transaction verification flow
-		Amount        int    `json:"amount"`         // Amount being verified
-		PaymentDate   string `json:"payment_date"`   // Legacy: payment date
-		Notes         string `json:"notes"`          // Legacy: notes
-	}
+func (h *RentalHandler) GetPendingVerifications(w http.ResponseWriter, r *http.Request) {
+	h.paymentHandler.GetPendingVerifications(w, r)
+}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
+func (h *RentalHandler) SyncPaymentHistory(w http.ResponseWriter, r *http.Request) {
+	h.paymentHandler.SyncPaymentHistory(w, r)
+}
 
-	// Get user from session (owner)
-	cookie, err := r.Cookie(h.cookieName)
-	if err != nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	sess, err := h.authService.ValidateSession(cookie.Value)
-	if err != nil || sess == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
-	if h.userRepo == nil {
-		http.Error(w, "User repository not configured", http.StatusInternalServerError)
-		return
-	}
-	user, err := h.userRepo.GetByID(sess.UserID)
-	if err != nil || user == nil {
-		http.Error(w, "Unauthorized", http.StatusUnauthorized)
-		return
-	}
+func (h *RentalHandler) AdjustPaymentDueDate(w http.ResponseWriter, r *http.Request) {
+	h.paymentHandler.AdjustPaymentDueDate(w, r)
+}
 
-	// NEW: Transaction verification flow
-	if req.TransactionID != "" {
-		if req.Amount <= 0 {
-			http.Error(w, "Amount must be greater than 0", http.StatusBadRequest)
-			return
-		}
+func (h *RentalHandler) RejectTransaction(w http.ResponseWriter, r *http.Request) {
+	h.paymentHandler.RejectTransaction(w, r)
+}
 
-		if err := h.paymentTransactionService.VerifyTransaction(req.TransactionID, req.Amount, user.ID); err != nil {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(map[string]interface{}{
-				"success": false,
-				"error":   err.Error(),
-			})
-			return
-		}
+func (h *RentalHandler) CreatePayment(w http.ResponseWriter, r *http.Request) {
+	h.paymentHandler.CreatePayment(w, r)
+}
 
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"message": "Transaction verified and payment updated",
-		})
-		return
-	}
-
-	// LEGACY: Old flow (mark full payment as paid)
-	if req.PaymentID == 0 {
-		http.Error(w, "Either payment_id or transaction_id required", http.StatusBadRequest)
-		return
-	}
-
-	// Parse payment date
-	paymentDate, err := time.Parse("2006-01-02", req.PaymentDate)
-	if err != nil {
-		http.Error(w, "Invalid date format", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.paymentService.MarkPaymentAsPaid(req.PaymentID, paymentDate, req.Notes); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Payment marked as paid",
-	})
+// Delegation method for backward compatibility
+func (h *RentalHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
+	h.DashboardHandler.GetSummary(w, r)
 }
 
 // GetSummary returns dashboard summary
-func (h *RentalHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
+func (h *DashboardHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
 	summary, err := h.dashboardService.GetDashboardSummary()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -294,41 +211,13 @@ func (h *RentalHandler) GetSummary(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(summary)
 }
 
-// VacateTenant handles tenant move-out
-func (h *RentalHandler) VacateTenant(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		TenantID int `json:"tenant_id"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	if err := h.tenantService.MoveOutTenant(req.TenantID); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Tenant moved out successfully",
-	})
+// Delegation method for backward compatibility
+func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
+	h.DashboardHandler.UnitDetails(w, r)
 }
 
 // UnitDetails renders the unit detail page
-func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
+func (h *DashboardHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
@@ -386,181 +275,4 @@ func (h *RentalHandler) UnitDetails(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-}
-
-// Helper function to get payment status
-func getPaymentStatus(payment *domain.Payment) string {
-	if payment.IsPaid {
-		return "Paid"
-	}
-	if time.Now().After(payment.DueDate) {
-		return "Overdue"
-	}
-	return "Pending"
-}
-
-// GetPendingVerifications returns all pending transaction verifications (owner only)
-func (h *RentalHandler) GetPendingVerifications(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// Get tenant ID from query (optional - if provided, filter by tenant)
-	tenantID := 0
-	if tenantIDStr := r.URL.Query().Get("tenant_id"); tenantIDStr != "" {
-		fmt.Sscanf(tenantIDStr, "%d", &tenantID)
-	}
-
-	// Get all pending verifications (0 = all tenants)
-	pending, err := h.paymentTransactionService.GetPendingVerifications(tenantID)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"data":    pending,
-	})
-}
-
-// SyncPaymentHistory syncs historical payment records for an existing tenant
-// This allows marking past payments as paid when transitioning from manual to system management
-func (h *RentalHandler) SyncPaymentHistory(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		TenantID int                             `json:"tenant_id"`
-		Payments []service.HistoricalPaymentData `json:"payments"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	if req.TenantID <= 0 {
-		http.Error(w, "tenant_id is required", http.StatusBadRequest)
-		return
-	}
-
-	if len(req.Payments) == 0 {
-		http.Error(w, "payments array is required", http.StatusBadRequest)
-		return
-	}
-
-	// Sync payment history
-	createdPayments, err := h.paymentHistoryService.SyncPaymentHistory(req.TenantID, req.Payments)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":  true,
-		"message":  fmt.Sprintf("Synced %d payment(s)", len(createdPayments)),
-		"payments": createdPayments,
-	})
-}
-
-// AdjustPaymentDueDate adjusts the due date of the first unpaid payment for a tenant
-func (h *RentalHandler) AdjustPaymentDueDate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		TenantID int    `json:"tenant_id"`
-		DueDate  string `json:"due_date"` // Format: "2006-01-02"
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	if req.TenantID <= 0 {
-		http.Error(w, "tenant_id is required", http.StatusBadRequest)
-		return
-	}
-
-	// Parse due date
-	dueDate, err := time.Parse("2006-01-02", req.DueDate)
-	if err != nil {
-		http.Error(w, "Invalid date format. Use YYYY-MM-DD", http.StatusBadRequest)
-		return
-	}
-
-	// Adjust due date
-	if err := h.paymentHistoryService.AdjustFirstPaymentDueDate(req.TenantID, dueDate); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Payment due date adjusted successfully",
-	})
-}
-
-// RejectTransaction rejects a pending transaction
-func (h *RentalHandler) RejectTransaction(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	var req struct {
-		TransactionID string `json:"transaction_id"`
-	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON", http.StatusBadRequest)
-		return
-	}
-
-	if req.TransactionID == "" {
-		http.Error(w, "transaction_id is required", http.StatusBadRequest)
-		return
-	}
-
-	// Reject transaction
-	if err := h.paymentTransactionService.RejectTransaction(req.TransactionID); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": false,
-			"error":   err.Error(),
-		})
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"message": "Transaction rejected successfully",
-	})
 }

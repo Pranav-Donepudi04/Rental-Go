@@ -123,12 +123,35 @@ func (s *TenantService) GetAllTenants() ([]*domain.Tenant, error) {
 		return nil, err
 	}
 
-	// Load related data for each tenant
+	// Bulk load units to fix N+1 query problem
+	unitIDs := make([]int, 0)
+	unitIDSet := make(map[int]bool)
 	for _, tenant := range tenants {
-		if tenant.UnitID > 0 {
-			unit, err := s.unitRepo.GetUnitByID(tenant.UnitID)
-			if err == nil {
-				tenant.Unit = unit
+		if tenant.UnitID > 0 && !unitIDSet[tenant.UnitID] {
+			unitIDs = append(unitIDs, tenant.UnitID)
+			unitIDSet[tenant.UnitID] = true
+		}
+	}
+
+	// Load all units in one query
+	units, err := s.unitRepo.GetUnitsByIDs(unitIDs)
+	if err != nil {
+		// If bulk load fails, fall back to individual loads (graceful degradation)
+		for _, tenant := range tenants {
+			if tenant.UnitID > 0 {
+				unit, err := s.unitRepo.GetUnitByID(tenant.UnitID)
+				if err == nil {
+					tenant.Unit = unit
+				}
+			}
+		}
+	} else {
+		// Map units to tenants
+		for _, tenant := range tenants {
+			if tenant.UnitID > 0 {
+				if unit, ok := units[tenant.UnitID]; ok {
+					tenant.Unit = unit
+				}
 			}
 		}
 	}

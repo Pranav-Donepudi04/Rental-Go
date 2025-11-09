@@ -25,10 +25,15 @@ func (r *PostgresPaymentRepository) CreatePayment(payment *domain.Payment) error
 		payment.RemainingBalance = payment.Amount
 	}
 
+	// Set default label if not provided
+	if payment.Label == "" {
+		payment.Label = domain.PaymentLabelRent
+	}
+
 	query := `
 		INSERT INTO payments (tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
-		                     due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		                     due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, label)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		RETURNING id, created_at`
 
 	err := r.db.QueryRow(query,
@@ -45,6 +50,7 @@ func (r *PostgresPaymentRepository) CreatePayment(payment *domain.Payment) error
 		payment.PaymentMethod,
 		payment.UPIID,
 		payment.Notes,
+		payment.Label,
 	).Scan(&payment.ID, &payment.CreatedAt)
 
 	if err != nil {
@@ -58,7 +64,7 @@ func (r *PostgresPaymentRepository) CreatePayment(payment *domain.Payment) error
 func (r *PostgresPaymentRepository) GetPaymentByID(id int) (*domain.Payment, error) {
 	query := `
 		SELECT id, tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
-		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, created_at
+		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, label, created_at
 		FROM payments
 		WHERE id = $1`
 
@@ -81,6 +87,7 @@ func (r *PostgresPaymentRepository) GetPaymentByID(id int) (*domain.Payment, err
 		&payment.PaymentMethod,
 		&payment.UPIID,
 		&payment.Notes,
+		&payment.Label,
 		&payment.CreatedAt,
 	)
 
@@ -115,7 +122,7 @@ func (r *PostgresPaymentRepository) DeletePaymentsByTenantID(tenantID int) error
 func (r *PostgresPaymentRepository) GetAllPayments() ([]*domain.Payment, error) {
 	query := `
 		SELECT id, tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
-		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, created_at
+		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, label, created_at
 		FROM payments
 		ORDER BY due_date DESC, created_at DESC`
 
@@ -146,6 +153,7 @@ func (r *PostgresPaymentRepository) GetAllPayments() ([]*domain.Payment, error) 
 			&payment.PaymentMethod,
 			&payment.UPIID,
 			&payment.Notes,
+			&payment.Label,
 			&payment.CreatedAt,
 		)
 		if err != nil {
@@ -175,8 +183,8 @@ func (r *PostgresPaymentRepository) UpdatePayment(payment *domain.Payment) error
 		UPDATE payments 
 		SET tenant_id = $1, unit_id = $2, amount = $3, amount_paid = $4, remaining_balance = $5,
 		    payment_date = $6, due_date = $7, is_paid = $8, is_fully_paid = $9, 
-		    fully_paid_date = $10, payment_method = $11, upi_id = $12, notes = $13
-		WHERE id = $14`
+		    fully_paid_date = $10, payment_method = $11, upi_id = $12, notes = $13, label = $14
+		WHERE id = $15`
 
 	result, err := r.db.Exec(query,
 		payment.TenantID,
@@ -192,6 +200,7 @@ func (r *PostgresPaymentRepository) UpdatePayment(payment *domain.Payment) error
 		payment.PaymentMethod,
 		payment.UPIID,
 		payment.Notes,
+		payment.Label,
 		payment.ID,
 	)
 
@@ -236,7 +245,7 @@ func (r *PostgresPaymentRepository) DeletePayment(id int) error {
 func (r *PostgresPaymentRepository) GetPaymentsByTenantID(tenantID int) ([]*domain.Payment, error) {
 	query := `
 		SELECT id, tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
-		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, created_at
+		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, label, created_at
 		FROM payments
 		WHERE tenant_id = $1
 		ORDER BY due_date DESC, created_at DESC`
@@ -268,6 +277,7 @@ func (r *PostgresPaymentRepository) GetPaymentsByTenantID(tenantID int) ([]*doma
 			&payment.PaymentMethod,
 			&payment.UPIID,
 			&payment.Notes,
+			&payment.Label,
 			&payment.CreatedAt,
 		)
 		if err != nil {
@@ -295,9 +305,9 @@ func (r *PostgresPaymentRepository) GetPaymentsByTenantID(tenantID int) ([]*doma
 func (r *PostgresPaymentRepository) GetPaymentByTenantAndMonth(tenantID int, month time.Month, year int) (*domain.Payment, error) {
 	query := `
 		SELECT id, tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
-		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, created_at
+		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, label, created_at
 		FROM payments
-		WHERE tenant_id = $1 AND EXTRACT(MONTH FROM due_date) = $2 AND EXTRACT(YEAR FROM due_date) = $3`
+		WHERE tenant_id = $1 AND EXTRACT(MONTH FROM due_date) = $2 AND EXTRACT(YEAR FROM due_date) = $3 AND label = 'rent'`
 
 	payment := &domain.Payment{}
 	var paymentDate sql.NullTime
@@ -318,6 +328,7 @@ func (r *PostgresPaymentRepository) GetPaymentByTenantAndMonth(tenantID int, mon
 		&payment.PaymentMethod,
 		&payment.UPIID,
 		&payment.Notes,
+		&payment.Label,
 		&payment.CreatedAt,
 	)
 
