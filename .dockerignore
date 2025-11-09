@@ -1,10 +1,27 @@
 # Git
 .git
 .gitignore
+.gitattributes
 
 # Documentation
 *.md
 docs/
+DEPLOYMENT*.md
+FREE_DEPLOYMENT.md
+QUICK_START_DEPLOY.md
+EXISTING_TENANT_MIGRATION_GUIDE.md
+FEATURE_IMPROVEMENTS_ANALYSIS.md
+NEON_DB_ANALYSIS.md
+RESTRUCTURING_IMPLEMENTATION_PLAN.md
+TESTING_PLAN.md
+CODE_IMPROVEMENTS_PLAN.md
+ARCHITECTURE_TYPE_ANALYSIS.md
+CALL_FLOW_GETFORMATTEDDUEDATE.md
+
+# Environment files
+.env
+.env.local
+.env.*.local
 
 # IDE
 .vscode/
@@ -13,30 +30,28 @@ docs/
 *.swo
 *~
 
-# Environment files (will be passed as env vars)
-.env
-.env.local
-.env.*.local
-
-# Build artifacts
-*.exe
-*.exe~
-*.dll
-*.so
-*.dylib
-server
-cmd/test/
-
-# Test files
-*_test.go
-**/test/
-**/*_test.go
-
-# OS files
+# OS
 .DS_Store
 Thumbs.db
 
-# Misc
-*.log
+# Build artifacts (if any)
+*.exe
+*.test
+*.out
+
+# Test files
+*_test.go
+**/*_test.go
+
+# Temporary files
 tmp/
 temp/
+*.tmp
+
+# Logs
+*.log
+
+# Docker
+Dockerfile*
+docker-compose*.yml
+.dockerignore

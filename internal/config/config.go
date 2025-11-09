@@ -22,6 +22,10 @@ type Config struct {
 	// Production Features
 	MaxConnections    int
 	ConnectionTimeout int
+
+	// Notification Configuration
+	TelegramBotToken string
+	OwnerChatID      string
 }
 
 func Load() *Config {
@@ -42,6 +46,10 @@ func Load() *Config {
 		// Production settings
 		MaxConnections:    getEnvAsInt("DB_MAX_CONNECTIONS", 25),
 		ConnectionTimeout: getEnvAsInt("DB_CONNECTION_TIMEOUT", 30),
+
+		// Notification settings
+		TelegramBotToken: getEnv("TELEGRAM_BOT_TOKEN", ""),
+		OwnerChatID:      getEnv("TELEGRAM_OWNER_CHAT_ID", ""),
 	}
 }
 

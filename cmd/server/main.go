@@ -68,6 +68,7 @@ func main() {
 	paymentRepo := repository.NewPostgresPaymentRepository(db)
 	userRepo := repository.NewPostgresUserRepository(db)
 	sessionRepo := repository.NewPostgresSessionRepository(db)
+	notificationRepo := repository.NewPostgresNotificationRepository(db)
 
 	// Create rental management services
 	// Note: PaymentService must be created before TenantService since TenantService depends on it
@@ -86,8 +87,27 @@ func main() {
 	authService := service.NewAuthService(userRepo, sessionRepo, 7*24*60*60*1e9)
 	dashboardService := service.NewDashboardService(unitService, tenantService, paymentQueryService)
 
+	// Create notification service and scheduler
+	notificationService := service.NewNotificationService(
+		notificationRepo,
+		paymentRepo,
+		tenantRepo,
+		unitRepo,
+		cfg.TelegramBotToken,
+		cfg.OwnerChatID,
+	)
+	notificationScheduler := service.NewNotificationScheduler(notificationService)
+
+	// Start notification scheduler (runs daily at 9 AM)
+	if cfg.TelegramBotToken != "" && cfg.OwnerChatID != "" {
+		notificationScheduler.Start()
+		fmt.Println("Notification scheduler started")
+	} else {
+		fmt.Println("Warning: Telegram bot token or owner chat ID not configured. Notifications disabled.")
+	}
+
 	// Create rental management handler
-	rentalHandler := handlers.NewRentalHandler(unitService, tenantService, paymentService, paymentQueryService, paymentTransactionService, paymentHistoryService, dashboardService, templates, authService)
+	rentalHandler := handlers.NewRentalHandler(unitService, tenantService, paymentService, paymentQueryService, paymentTransactionService, paymentHistoryService, dashboardService, notificationService, templates, authService)
 	authHandler := handlers.NewAuthHandler(authService, templates, "sid")
 	tenantHandler := handlers.NewTenantHandler(tenantService, paymentService, paymentTransactionService, userRepo, templates, "sid", authService)
 

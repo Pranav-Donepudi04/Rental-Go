@@ -20,6 +20,7 @@ type RentalHandler struct {
 	paymentTransactionService *service.PaymentTransactionService
 	paymentHistoryService     *service.PaymentHistoryService
 	dashboardService          *service.DashboardService
+	notificationService       *service.NotificationService
 	templates                 *template.Template
 	authService               *service.AuthService
 	userRepo                  interfaces.UserRepository
@@ -27,7 +28,7 @@ type RentalHandler struct {
 }
 
 // NewRentalHandler creates a new RentalHandler
-func NewRentalHandler(unitService *service.UnitService, tenantService *service.TenantService, paymentService *service.PaymentService, paymentQueryService *service.PaymentQueryService, paymentTransactionService *service.PaymentTransactionService, paymentHistoryService *service.PaymentHistoryService, dashboardService *service.DashboardService, templates *template.Template, auth *service.AuthService) *RentalHandler {
+func NewRentalHandler(unitService *service.UnitService, tenantService *service.TenantService, paymentService *service.PaymentService, paymentQueryService *service.PaymentQueryService, paymentTransactionService *service.PaymentTransactionService, paymentHistoryService *service.PaymentHistoryService, dashboardService *service.DashboardService, notificationService *service.NotificationService, templates *template.Template, auth *service.AuthService) *RentalHandler {
 	return &RentalHandler{
 		unitService:               unitService,
 		tenantService:             tenantService,
@@ -36,6 +37,7 @@ func NewRentalHandler(unitService *service.UnitService, tenantService *service.T
 		paymentTransactionService: paymentTransactionService,
 		paymentHistoryService:     paymentHistoryService,
 		dashboardService:          dashboardService,
+		notificationService:       notificationService,
 		templates:                 templates,
 		authService:               auth,
 		cookieName:                "sid",

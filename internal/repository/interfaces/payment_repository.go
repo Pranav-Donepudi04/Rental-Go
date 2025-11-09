@@ -29,4 +29,8 @@ type PaymentRepository interface {
 	// NEW: Auto-create helpers
 	GetLatestPaymentByTenantID(tenantID int) (*domain.Payment, error)
 	GetUnpaidPaymentsByTenantID(tenantID int) ([]*domain.Payment, error)
+
+	// NEW: Notification helpers - get payments by due date
+	GetUnpaidPaymentsByDueDate(dueDate time.Time) ([]*domain.Payment, error)
+	GetUnpaidPaymentsDueInDays(days int) ([]*domain.Payment, error)
 }

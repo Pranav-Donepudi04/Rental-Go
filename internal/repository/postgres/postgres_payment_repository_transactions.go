@@ -457,3 +457,75 @@ func (r *PostgresPaymentRepository) GetUnpaidPaymentsByTenantID(tenantID int) ([
 
 	return payments, nil
 }
+
+// GetUnpaidPaymentsByDueDate returns all unpaid payments with a specific due date
+func (r *PostgresPaymentRepository) GetUnpaidPaymentsByDueDate(dueDate time.Time) ([]*domain.Payment, error) {
+	// Normalize due date to start of day for comparison
+	startOfDay := time.Date(dueDate.Year(), dueDate.Month(), dueDate.Day(), 0, 0, 0, 0, dueDate.Location())
+	endOfDay := startOfDay.Add(24 * time.Hour)
+
+	query := `
+		SELECT id, tenant_id, unit_id, amount, amount_paid, remaining_balance, payment_date, 
+		       due_date, is_paid, is_fully_paid, fully_paid_date, payment_method, upi_id, notes, created_at
+		FROM payments
+		WHERE is_fully_paid = FALSE 
+		  AND due_date >= $1 
+		  AND due_date < $2
+		ORDER BY due_date ASC`
+
+	rows, err := r.db.Query(query, startOfDay, endOfDay)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query payments by due date: %w", err)
+	}
+	defer rows.Close()
+
+	var payments []*domain.Payment
+	for rows.Next() {
+		payment := &domain.Payment{}
+		var paymentDate sql.NullTime
+		var fullyPaidDate sql.NullTime
+
+		err := rows.Scan(
+			&payment.ID,
+			&payment.TenantID,
+			&payment.UnitID,
+			&payment.Amount,
+			&payment.AmountPaid,
+			&payment.RemainingBalance,
+			&paymentDate,
+			&payment.DueDate,
+			&payment.IsPaid,
+			&payment.IsFullyPaid,
+			&fullyPaidDate,
+			&payment.PaymentMethod,
+			&payment.UPIID,
+			&payment.Notes,
+			&payment.CreatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan payment: %w", err)
+		}
+
+		if paymentDate.Valid {
+			payment.PaymentDate = &paymentDate.Time
+		}
+		if fullyPaidDate.Valid {
+			payment.FullyPaidDate = &fullyPaidDate.Time
+		}
+
+		payments = append(payments, payment)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating payments by due date: %w", err)
+	}
+
+	return payments, nil
+}
+
+// GetUnpaidPaymentsDueInDays returns all unpaid payments due in exactly N days from today
+func (r *PostgresPaymentRepository) GetUnpaidPaymentsDueInDays(days int) ([]*domain.Payment, error) {
+	now := time.Now()
+	targetDate := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location()).AddDate(0, 0, days)
+	return r.GetUnpaidPaymentsByDueDate(targetDate)
+}
