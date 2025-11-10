@@ -80,7 +80,7 @@ func main() {
 
 	// Initialize logger
 	initializeLogger(cfg)
-	defer logger.Sync()
+	// Don't defer Sync() - call it explicitly before exit to avoid blocking
 
 	// Setup application
 	app := setupApplication(cfg)
@@ -90,6 +90,9 @@ func main() {
 
 	// Wait for shutdown signal
 	waitForShutdown(app)
+
+	// Sync logger before exit (with timeout to avoid blocking)
+	syncLoggerWithTimeout()
 }
 
 // initializeConfig loads and validates configuration
@@ -336,20 +339,24 @@ func waitForShutdown(app *App) {
 
 	logger.Info("Shutting down server...")
 
+	// Stop notification scheduler first (non-blocking)
+	if app.Config.TelegramBotToken != "" && app.Config.OwnerChatID != "" {
+		app.NotificationScheduler.Stop()
+		// Give it a moment to stop, but don't wait too long
+		time.Sleep(100 * time.Millisecond)
+		logger.Info("Notification scheduler stop signal sent")
+	}
+
 	// Graceful shutdown with timeout
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := app.Server.Shutdown(ctx); err != nil {
 		logger.Error("Server forced to shutdown",
 			zap.Error(err),
 		)
-	}
-
-	// Stop notification scheduler
-	if app.Config.TelegramBotToken != "" && app.Config.OwnerChatID != "" {
-		app.NotificationScheduler.Stop()
-		logger.Info("Notification scheduler stopped")
+		// Force close if shutdown times out
+		app.Server.Close()
 	}
 
 	// Close database connection
@@ -360,4 +367,20 @@ func waitForShutdown(app *App) {
 	}
 
 	logger.Info("Server stopped gracefully")
+}
+
+// syncLoggerWithTimeout syncs the logger with a timeout to avoid blocking
+func syncLoggerWithTimeout() {
+	done := make(chan bool, 1)
+	go func() {
+		logger.Sync()
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		// Logger synced successfully
+	case <-time.After(1 * time.Second):
+		// Timeout - logger sync taking too long, exit anyway
+	}
 }

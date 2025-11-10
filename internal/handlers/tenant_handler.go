@@ -64,12 +64,18 @@ func (h *TenantHandler) Me(w http.ResponseWriter, r *http.Request) {
 	currentFamilyCount := len(tenant.FamilyMembers)
 	isAtLimit := currentFamilyCount >= maxFamilyMembers
 
+	// Get UPI ID and payment method for display
+	upiID := h.paymentService.GetDefaultUPIID()
+	paymentMethod := h.paymentService.GetDefaultPaymentMethod()
+
 	data := map[string]interface{}{
 		"Tenant":               tenant,
 		"Payments":             payments,
 		"MaxFamilyMembers":     maxFamilyMembers,
 		"CurrentFamilyCount":   currentFamilyCount,
 		"IsFamilyLimitReached": isAtLimit,
+		"UPIID":                upiID,
+		"PaymentMethod":        paymentMethod,
 	}
 	_ = h.templates.ExecuteTemplate(w, "tenant-dashboard.html", data)
 }

@@ -95,6 +95,11 @@ func (r *Router) SetupRoutes() {
 	// Metrics endpoint (owner only)
 	http.HandleFunc("/metrics", compressionWrapper(metricsWrapper(http.HandlerFunc(recoveryWrapper(correlationWrapper(r.requireOwner(r.metricsHandler.GetMetrics))).ServeHTTP))))
 
+	// Static file: QR Code image
+	http.HandleFunc("/static/qrcode.png", compressionWrapper(metricsWrapper(http.HandlerFunc(recoveryWrapper(correlationWrapper(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "QRCode.png")
+	}))).ServeHTTP))))
+
 	// Redirect root to login
 	rootHandler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		http.Redirect(w, req, "/login", http.StatusSeeOther)

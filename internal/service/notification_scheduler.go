@@ -26,9 +26,14 @@ func (s *NotificationScheduler) Start() {
 	go s.run()
 }
 
-// Stop stops the scheduler
+// Stop stops the scheduler (non-blocking)
 func (s *NotificationScheduler) Stop() {
-	s.stopChan <- true
+	select {
+	case s.stopChan <- true:
+		// Stop signal sent
+	default:
+		// Channel full or already stopping, ignore
+	}
 }
 
 // run executes the scheduler loop
@@ -47,8 +52,38 @@ func (s *NotificationScheduler) run() {
 	ticker := time.NewTicker(24 * time.Hour)
 	defer ticker.Stop()
 
-	// Wait until the scheduled time for first run
-	time.Sleep(time.Until(nextRun))
+	// Wait until the scheduled time for first run, but check for stop signal periodically
+	waitDuration := time.Until(nextRun)
+	if waitDuration > 0 {
+		waitTimer := time.NewTimer(waitDuration)
+		defer waitTimer.Stop()
+
+		// Check for stop signal every 100ms while waiting
+		stopTicker := time.NewTicker(100 * time.Millisecond)
+		defer stopTicker.Stop()
+
+		for {
+			select {
+			case <-waitTimer.C:
+				// Time reached, proceed
+				goto runScheduled
+			case <-s.stopChan:
+				logger.Info("Notification scheduler stopped during initial wait")
+				return
+			case <-stopTicker.C:
+				// Check if stop was requested (non-blocking check)
+				select {
+				case <-s.stopChan:
+					logger.Info("Notification scheduler stopped during initial wait")
+					return
+				default:
+					// Continue waiting
+				}
+			}
+		}
+	}
+
+runScheduled:
 
 	// Run immediately at scheduled time
 	s.checkAndSendReminders()

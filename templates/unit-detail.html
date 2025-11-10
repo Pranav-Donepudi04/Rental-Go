@@ -15,7 +15,7 @@
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            color: #333;
+            color: #111827;
         }
 
         .container {
@@ -34,7 +34,7 @@
         }
 
         .header h1 {
-            color: #2c3e50;
+            color: #111827;
             font-size: 2.5em;
             margin-bottom: 10px;
         }
@@ -43,18 +43,18 @@
             position: absolute;
             top: 20px;
             left: 20px;
-            background: #3498db;
+            background: #2563eb;
             color: white;
             padding: 10px 20px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
             text-decoration: none;
             font-size: 1em;
         }
 
         .back-btn:hover {
-            background: #2980b9;
+            background: #1d4ed8;
         }
 
         .content-grid {
@@ -72,20 +72,21 @@
         }
 
         .card h2 {
-            color: #2c3e50;
+            color: #111827;
             margin-bottom: 20px;
             font-size: 1.8em;
         }
 
         .unit-info {
-            background: #f8f9fa;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
             padding: 20px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
 
         .unit-info h3 {
-            color: #2c3e50;
+            color: #111827;
             margin-bottom: 15px;
             font-size: 1.5em;
         }
@@ -95,7 +96,7 @@
             justify-content: space-between;
             margin-bottom: 10px;
             padding: 8px 0;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid #e5e7eb;
         }
 
         .info-row:last-child {
@@ -104,11 +105,11 @@
 
         .info-label {
             font-weight: bold;
-            color: #555;
+            color: #374151;
         }
 
         .info-value {
-            color: #2c3e50;
+            color: #111827;
         }
 
         .status-badge {
@@ -119,24 +120,25 @@
         }
 
         .status-available {
-            background: #d4edda;
-            color: #155724;
+            background: #d1fae5;
+            color: #065f46;
         }
 
         .status-occupied {
-            background: #f8d7da;
-            color: #721c24;
+            background: #fee2e2;
+            color: #991b1b;
         }
 
         .tenant-info {
-            background: #e8f5e8;
+            background: #f0fdf4;
+            border: 1px solid #d1fae5;
             padding: 20px;
             border-radius: 10px;
             margin-bottom: 20px;
         }
 
         .tenant-info h3 {
-            color: #2c3e50;
+            color: #111827;
             margin-bottom: 15px;
             font-size: 1.5em;
         }
@@ -147,41 +149,42 @@
             align-items: center;
             padding: 15px;
             margin: 10px 0;
-            background: #f8f9fa;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
             border-radius: 10px;
-            border-left: 4px solid #f39c12;
+            border-left: 4px solid #d97706;
         }
 
         .payment-item.paid {
-            border-left-color: #27ae60;
+            border-left-color: #059669;
         }
 
         .payment-item.overdue {
-            border-left-color: #e74c3c;
+            border-left-color: #dc2626;
         }
 
         .payment-info h4 {
-            color: #2c3e50;
+            color: #111827;
             margin-bottom: 5px;
         }
 
         .payment-info p {
-            color: #7f8c8d;
+            color: #6b7280;
             font-size: 0.9em;
         }
 
         .payment-amount {
             font-size: 1.2em;
             font-weight: bold;
-            color: #2c3e50;
+            color: #111827;
         }
 
         .btn {
-            background: #3498db;
+            background: #2563eb;
             color: white;
             padding: 10px 20px;
             border: none;
-            border-radius: 5px;
+            border-radius: 6px;
             cursor: pointer;
             font-size: 1em;
             transition: background 0.3s ease;
@@ -190,20 +193,20 @@
         }
 
         .btn:hover {
-            background: #2980b9;
+            background: #1d4ed8;
         }
 
         .btn-danger {
-            background: #e74c3c;
+            background: #dc2626;
         }
 
         .btn-danger:hover {
-            background: #c0392b;
+            background: #b91c1c;
         }
 
         .empty-state {
             text-align: center;
-            color: #7f8c8d;
+            color: #6b7280;
             font-style: italic;
             padding: 40px;
         }
@@ -235,7 +238,7 @@
         .form-group label {
             display: block;
             margin-bottom: 5px;
-            color: #2c3e50;
+            color: #111827;
             font-weight: bold;
         }
 
@@ -259,9 +262,238 @@
             color: #000;
         }
 
+        /* Enhanced Verification Card Styles */
+        .verification-card {
+            background: #ffffff;
+            border: 2px solid #f59e0b;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 8px rgba(217, 119, 6, 0.15);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .verification-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(217, 119, 6, 0.2);
+        }
+
+        .verification-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #fef3c7;
+        }
+
+        .verification-title {
+            color: #92400e;
+            font-size: 1.1em;
+            font-weight: 600;
+            margin-bottom: 5px;
+        }
+
+        .verification-txn-id {
+            font-family: 'Courier New', monospace;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 0.95em;
+            color: #111827;
+            letter-spacing: 0.5px;
+        }
+
+        .verification-meta {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-size: 0.9em;
+            color: #78350f;
+        }
+
+        .verification-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            flex-wrap: wrap;
+        }
+
+        .amount-input-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .amount-input {
+            flex: 1;
+            padding: 10px 12px;
+            border: 2px solid #f59e0b;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 600;
+            transition: border-color 0.3s;
+            background: #ffffff;
+        }
+
+        .amount-input:focus {
+            outline: none;
+            border-color: #d97706;
+            box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.1);
+        }
+
+        .btn-success {
+            background: #059669;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #047857;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(5, 150, 105, 0.3);
+        }
+
+        .btn-success:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .btn-reject {
+            background: #dc2626;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            flex: 1;
+            min-width: 120px;
+        }
+
+        .btn-reject:hover:not(:disabled) {
+            background: #b91c1c;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(220, 38, 38, 0.3);
+        }
+
+        .btn-quick {
+            background: #2563eb;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85em;
+            font-weight: 600;
+            transition: all 0.3s;
+        }
+
+        .btn-quick:hover {
+            background: #1d4ed8;
+            transform: translateY(-1px);
+        }
+
+        .suggested-amount {
+            background: #d1fae5;
+            border: 1px solid #059669;
+            border-radius: 6px;
+            padding: 8px 12px;
+            margin-top: 8px;
+            font-size: 0.9em;
+            color: #065f46;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Toast Notification */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #111827;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            z-index: 1000;
+            display: none;
+            animation: slideIn 0.3s ease;
+            max-width: 350px;
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        .toast.success {
+            background: #059669;
+        }
+
+        .toast.error {
+            background: #dc2626;
+        }
+
+        .toast.info {
+            background: #2563eb;
+        }
+
+        @keyframes slideIn {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .verification-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: 600;
+            background: #fef3c7;
+            color: #92400e;
+            border: 1px solid #f59e0b;
+        }
+
         @media (max-width: 768px) {
             .content-grid {
                 grid-template-columns: 1fr;
+            }
+            .verification-actions {
+                flex-direction: column;
+            }
+            .amount-input-group {
+                flex-direction: column;
             }
         }
     </style>
@@ -333,11 +565,11 @@
                     </div>
                 </div>
                 <div style="text-align: center; margin-top: 20px; display: flex; gap: 10px; justify-content: center; flex-wrap: wrap;">
-                    <button class="btn" id="syncPaymentBtn" style="background: #f39c12;">
+                    <button class="btn" id="syncPaymentBtn" style="background: #d97706;">
                         Sync Payment History
                     </button>
-                    <button class="btn" onclick="regeneratePassword({{.Tenant.ID}}, '{{.Tenant.Name}}')" style="background: #3498db;">
-                        🔑 Regenerate Temp Password
+                    <button class="btn" onclick="regeneratePassword({{.Tenant.ID}}, '{{.Tenant.Name}}')" style="background: #2563eb;">
+                        Regenerate Temp Password
                     </button>
                     <button class="btn btn-danger" onclick="vacateTenant({{.Tenant.ID}}, '{{.Tenant.Name}}')">
                         Vacate Tenant
@@ -357,13 +589,13 @@
         <div class="card">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 style="margin: 0;">Payment History</h2>
-                <button class="btn" onclick="openModal('addPaymentModal')" style="background: #27ae60;">
+                <button class="btn" onclick="openModal('addPaymentModal')" style="background: #059669;">
                     + Add Payment
                 </button>
             </div>
             <!-- Payment Type Filter -->
             <div style="margin-bottom: 20px;">
-                <label for="paymentFilter" style="display: block; margin-bottom: 8px; font-weight: bold; color: #2c3e50;">Filter by Payment Type:</label>
+                <label for="paymentFilter" style="display: block; margin-bottom: 8px; font-weight: bold; color: #111827;">Filter by Payment Type:</label>
                 <select id="paymentFilter" onchange="filterPayments()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 1em; width: 250px;">
                     <option value="rent">Rent</option>
                     <option value="water_bill">Water Bill</option>
@@ -384,26 +616,26 @@
                                 <strong>Amount:</strong> {{.GetFormattedAmount}}
                             </span>
                             {{if not .IsFullyPaid}}
-                            <span style="display: inline-block; margin-right: 15px; color: #27ae60;">
+                            <span style="display: inline-block; margin-right: 15px; color: #059669;">
                                 <strong>Paid:</strong> {{.GetFormattedAmountPaid}}
                             </span>
-                            <span style="display: inline-block; color: #e74c3c;">
+                            <span style="display: inline-block; color: #dc2626;">
                                 <strong>Remaining:</strong> {{.GetFormattedRemainingBalance}}
                             </span>
                             {{end}}
                         </div>
                         {{if .IsFullyPaid}}
-                        <p style="margin-top: 5px; color: #27ae60;">✅ Fully Paid on {{if .FullyPaidDate}}{{.FullyPaidDate.Format "Jan 2, 2006"}}{{end}}</p>
+                        <p style="margin-top: 5px; color: #059669;">Fully Paid on {{if .FullyPaidDate}}{{.FullyPaidDate.Format "Jan 2, 2006"}}{{end}}</p>
                         {{end}}
                         {{if .Notes}}
-                        <p style="margin-top: 5px; font-size: 0.85em; color: #7f8c8d;">Notes: {{.Notes}}</p>
+                        <p style="margin-top: 5px; font-size: 0.85em; color: #6b7280;">Notes: {{.Notes}}</p>
                         {{end}}
                     </div>
                     <div class="payment-amount" style="text-align: right;">
                         {{if .IsFullyPaid}}
-                            <div style="color: #27ae60; font-size: 1.2em;">✓ Paid</div>
+                            <div style="color: #059669; font-size: 1.2em;">Paid</div>
                         {{else}}
-                            <div style="color: #e74c3c;">Pending</div>
+                            <div style="color: #dc2626;">Pending</div>
                         {{end}}
                     </div>
                 </div>
@@ -419,25 +651,58 @@
         <!-- Pending Verifications -->
         {{if .PendingVerifications}}
         <div class="card">
-            <h2>Pending Transaction Verifications</h2>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">⏳ Pending Transaction Verifications</h2>
+                <span class="verification-badge">{{len .PendingVerifications}} Pending</span>
+            </div>
             {{range $idx, $txn := .PendingVerifications}}
-            <div class="payment-item" style="margin-bottom: 15px;">
-                <div class="payment-info" style="flex: 1;">
-                    <h4>Transaction ID: {{$txn.TransactionID}}</h4>
-                    <p>Submitted: {{$txn.SubmittedAt.Format "Jan 2, 2006 3:04 PM"}}</p>
-                    <p style="color: #f39c12;">⚠️ Waiting for owner verification</p>
-                </div>
-                <div style="display: flex; flex-direction: column; gap: 10px;">
-                    <input type="number" id="verify_amount_{{$txn.ID}}" placeholder="Enter amount" 
-                           style="padding: 8px; border: 1px solid #ddd; border-radius: 5px; width: 150px;" />
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-success" onclick="verifyTransaction('{{$txn.TransactionID}}', 'verify_amount_{{$txn.ID}}'); event.preventDefault(); return false;" style="flex: 1;">
-                            Verify
-                        </button>
-                        <button class="btn btn-danger" onclick="rejectTransaction('{{$txn.TransactionID}}')" style="flex: 1;">
-                            Reject
-                        </button>
+            <div class="verification-card" id="verification_card_{{$txn.ID}}">
+                <div class="verification-header">
+                    <div style="flex: 1;">
+                        <div class="verification-title">Pending Transaction</div>
+                        <div class="verification-txn-id" style="margin-top: 8px;">{{$txn.TransactionID}}</div>
                     </div>
+                    <div class="verification-meta">
+                        <div>📅 <strong>Submitted:</strong> {{$txn.SubmittedAt.Format "Jan 2, 2006 3:04 PM"}}</div>
+                        {{if $txn.Payment}}
+                        <div>💳 <strong>Payment:</strong> #{{$txn.Payment.ID}} - {{$txn.Payment.GetLabelDisplayName}}</div>
+                        <div>💰 <strong>Due:</strong> {{$txn.Payment.GetFormattedAmount}} (Remaining: {{$txn.Payment.GetFormattedRemainingBalance}})</div>
+                        {{end}}
+                    </div>
+                </div>
+                
+                {{if $txn.Notes}}
+                <div class="suggested-amount" id="suggested_amount_{{$txn.ID}}">
+                    <span>💡 <strong>Tenant Suggested:</strong> {{$txn.Notes}}</span>
+                    <button class="btn-quick" onclick="useSuggestedAmount('{{$txn.ID}}', '{{$txn.Notes}}')" style="margin-left: auto;">
+                        Use This
+                    </button>
+                </div>
+                {{end}}
+                
+                <div class="amount-input-group">
+                    <input type="number" 
+                           id="verify_amount_{{$txn.ID}}" 
+                           class="amount-input"
+                           placeholder="Enter verified amount (₹)" 
+                           min="1"
+                           required />
+                    <button class="btn-quick" onclick="fillRemainingAmount('{{$txn.ID}}')" title="Fill remaining balance">
+                        Fill Remaining
+                    </button>
+                </div>
+                
+                <div class="verification-actions">
+                    <button class="btn-success" 
+                            id="verify_btn_{{$txn.ID}}"
+                            onclick="verifyTransaction('{{$txn.TransactionID}}', 'verify_amount_{{$txn.ID}}', '{{$txn.ID}}'); return false;">
+                        ✅ Verify Payment
+                    </button>
+                    <button class="btn-reject" 
+                            id="reject_btn_{{$txn.ID}}"
+                            onclick="rejectTransaction('{{$txn.TransactionID}}', '{{$txn.ID}}'); return false;">
+                        ❌ Reject
+                    </button>
                 </div>
             </div>
             {{end}}
@@ -626,29 +891,68 @@
             moveInDateInput.value = new Date().toISOString().split('T')[0];
         }
 
+        // Toast notification function
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.className = `toast ${type} show`;
+            toast.textContent = message;
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 4000);
+        }
+
+        // Extract amount from notes (e.g., "Suggested amount: ₹5000")
+        function useSuggestedAmount(txnId, notes) {
+            const match = notes.match(/₹(\d+)/);
+            if (match) {
+                const amount = parseInt(match[1]);
+                document.getElementById('verify_amount_' + txnId).value = amount;
+                showToast(`✅ Filled suggested amount: ₹${amount}`, 'success');
+            } else {
+                showToast('Could not extract amount from notes', 'error');
+            }
+        }
+
+        // Fill remaining balance from payment
+        function fillRemainingAmount(txnId) {
+            // Try to find remaining balance from payment info in the card
+            const card = document.getElementById('verification_card_' + txnId);
+            if (card) {
+                const remainingText = card.textContent.match(/Remaining:\s*₹(\d+)/);
+                if (remainingText) {
+                    const remaining = parseInt(remainingText[1]);
+                    document.getElementById('verify_amount_' + txnId).value = remaining;
+                    showToast(`✅ Filled remaining balance: ₹${remaining}`, 'success');
+                } else {
+                    showToast('Remaining balance not found', 'error');
+                }
+            }
+        }
+
         // Verify transaction
-        function verifyTransaction(transactionID, amountInputId) {
+        function verifyTransaction(transactionID, amountInputId, cardId) {
             const amountInput = document.getElementById(amountInputId);
             const amount = parseInt(amountInput.value);
             
             if (!amount || amount <= 0) {
-                alert('Please enter a valid amount greater than 0');
+                showToast('❌ Please enter a valid amount greater than 0', 'error');
+                amountInput.focus();
                 return;
             }
 
-            // Find and disable the verify button to prevent double-clicks
-            // Find button by looking for the one that contains this transaction ID in its onclick
-            const allButtons = document.querySelectorAll('button.btn-success');
-            let verifyButton = null;
-            for (let btn of allButtons) {
-                if (btn.getAttribute('onclick') && btn.getAttribute('onclick').includes(transactionID)) {
-                    verifyButton = btn;
-                    break;
-                }
-            }
+            const verifyButton = document.getElementById('verify_btn_' + cardId);
+            const rejectButton = document.getElementById('reject_btn_' + cardId);
+            const card = document.getElementById('verification_card_' + cardId);
+
             if (verifyButton) {
                 verifyButton.disabled = true;
-                verifyButton.textContent = 'Verifying...';
+                verifyButton.innerHTML = '<span class="spinner"></span> Verifying...';
+            }
+            if (rejectButton) {
+                rejectButton.disabled = true;
+            }
+            if (card) {
+                card.style.opacity = '0.7';
             }
 
             const verifyData = {
@@ -667,8 +971,8 @@
                 const contentType = response.headers.get('content-type');
                 if (!contentType || !contentType.includes('application/json')) {
                     if (response.redirected || response.status === 401 || response.status === 403) {
-                        alert('Session expired. Please login again.');
-                        window.location.href = '/login';
+                        showToast('Session expired. Please login again.', 'error');
+                        setTimeout(() => window.location.href = '/login', 2000);
                         return;
                     }
                     return response.text().then(text => {
@@ -679,29 +983,56 @@
             })
             .then(data => {
                 if (data.success) {
-                    alert('Transaction verified successfully! Payment updated.');
-                    location.reload();
+                    showToast('✅ Transaction verified successfully! Payment updated.', 'success');
+                    setTimeout(() => location.reload(), 1500);
                 } else {
-                    alert('Error: ' + (data.error || data.message || 'Unknown error'));
+                    showToast('❌ ' + (data.error || data.message || 'Unknown error'), 'error');
                     if (verifyButton) {
                         verifyButton.disabled = false;
-                        verifyButton.textContent = 'Verify';
+                        verifyButton.textContent = '✅ Verify Payment';
+                    }
+                    if (rejectButton) {
+                        rejectButton.disabled = false;
+                    }
+                    if (card) {
+                        card.style.opacity = '1';
                     }
                 }
             })
             .catch(error => {
-                alert('Error: ' + error.message);
+                showToast('❌ Error: ' + error.message, 'error');
                 if (verifyButton) {
                     verifyButton.disabled = false;
-                    verifyButton.textContent = 'Verify';
+                    verifyButton.textContent = '✅ Verify Payment';
+                }
+                if (rejectButton) {
+                    rejectButton.disabled = false;
+                }
+                if (card) {
+                    card.style.opacity = '1';
                 }
             });
         }
 
         // Reject transaction
-        function rejectTransaction(transactionID) {
-            if (!confirm('Are you sure you want to reject this transaction? This action cannot be undone.')) {
+        function rejectTransaction(transactionID, cardId) {
+            if (!confirm('⚠️ Are you sure you want to reject this transaction?\n\nThis action cannot be undone and the transaction will be removed.')) {
                 return;
+            }
+
+            const rejectButton = document.getElementById('reject_btn_' + cardId);
+            const verifyButton = document.getElementById('verify_btn_' + cardId);
+            const card = document.getElementById('verification_card_' + cardId);
+
+            if (rejectButton) {
+                rejectButton.disabled = true;
+                rejectButton.innerHTML = '<span class="spinner"></span> Rejecting...';
+            }
+            if (verifyButton) {
+                verifyButton.disabled = true;
+            }
+            if (card) {
+                card.style.opacity = '0.7';
             }
 
             fetch('/api/payments/reject-transaction', {
@@ -713,17 +1044,50 @@
                     transaction_id: transactionID
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                const contentType = response.headers.get('content-type');
+                if (!contentType || !contentType.includes('application/json')) {
+                    if (response.redirected || response.status === 401 || response.status === 403) {
+                        showToast('Session expired. Please login again.', 'error');
+                        setTimeout(() => window.location.href = '/login', 2000);
+                        return;
+                    }
+                    return response.text().then(text => {
+                        throw new Error('Server returned non-JSON response');
+                    });
+                }
+                return response.json();
+            })
             .then(data => {
                 if (data.success) {
-                    alert('Transaction rejected successfully!');
-                    location.reload();
+                    showToast('✅ Transaction rejected successfully!', 'success');
+                    setTimeout(() => location.reload(), 1500);
                 } else {
-                    alert('Error: ' + (data.error || data.message));
+                    showToast('❌ ' + (data.error || data.message || 'Unknown error'), 'error');
+                    if (rejectButton) {
+                        rejectButton.disabled = false;
+                        rejectButton.textContent = '❌ Reject';
+                    }
+                    if (verifyButton) {
+                        verifyButton.disabled = false;
+                    }
+                    if (card) {
+                        card.style.opacity = '1';
+                    }
                 }
             })
             .catch(error => {
-                alert('Error: ' + error.message);
+                showToast('❌ Error: ' + error.message, 'error');
+                if (rejectButton) {
+                    rejectButton.disabled = false;
+                    rejectButton.textContent = '❌ Reject';
+                }
+                if (verifyButton) {
+                    verifyButton.disabled = false;
+                }
+                if (card) {
+                    card.style.opacity = '1';
+                }
             });
         }
 
@@ -771,7 +1135,7 @@
                                style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px;">
                     </div>
                     <button type="button" class="btn" onclick="removePaymentEntry('payment-entry-${paymentEntryCounter}')" 
-                            style="background: #e74c3c; padding: 8px 15px;">
+                            style="background: #dc2626; padding: 8px 15px;">
                         Remove
                     </button>
                 </div>
@@ -976,7 +1340,7 @@
                         <input type="checkbox" id="isExistingTenant" name="isExistingTenant" style="width: auto; cursor: pointer;">
                         <span>Existing Tenant (has already paid some months manually)</span>
                     </label>
-                    <small style="color: #7f8c8d; font-size: 0.9em; margin-top: 5px; display: block;">
+                    <small style="color: #6b7280; font-size: 0.9em; margin-top: 5px; display: block;">
                         Check this if the tenant has been staying and payments were managed manually
                     </small>
                 </div>
@@ -991,7 +1355,7 @@
         <div class="modal-content" style="max-width: 700px;">
             <span class="close" onclick="closeModal('syncPaymentModal')">&times;</span>
             <h2>Sync Payment History for {{.Tenant.Name}}</h2>
-            <p style="color: #7f8c8d; margin-bottom: 20px;">
+            <p style="color: #6b7280; margin-bottom: 20px;">
                 Enter the months that have already been paid manually. This will create payment records marked as "Fully Paid".
                 <br><strong>Note:</strong> You can only sync payments for months on or after the first payment due date.
                 <br>Move-in: {{.Tenant.MoveInDate.Format "January 2, 2006"}} | Payment Due: {{.Unit.PaymentDueDay}}th of each month
@@ -999,14 +1363,14 @@
             <div id="paymentHistoryEntries">
                 <!-- Payment entries will be added dynamically -->
             </div>
-            <button type="button" class="btn" onclick="addPaymentEntry()" style="margin-bottom: 15px; background: #27ae60;">
+            <button type="button" class="btn" onclick="addPaymentEntry()" style="margin-bottom: 15px; background: #059669;">
                 + Add Payment Month
             </button>
             <div style="display: flex; gap: 10px;">
-                <button type="button" class="btn" onclick="syncPaymentHistory({{.Tenant.ID}})" style="flex: 1;">
+                <button type="button" class="btn" onclick="syncPaymentHistory({{.Tenant.ID}})" style="flex: 1; background: #2563eb;">
                     Sync Payments
                 </button>
-                <button type="button" class="btn" onclick="closeModal('syncPaymentModal')" style="background: #95a5a6;">
+                <button type="button" class="btn" onclick="closeModal('syncPaymentModal')" style="background: #6b7280;">
                     Cancel
                 </button>
             </div>
@@ -1126,6 +1490,9 @@
         });
     </script>
     {{end}}
+    
+    <!-- Toast Notification Container -->
+    <div id="toast" class="toast"></div>
     
     <!-- Add Payment Modal -->
     {{if .Tenant}}

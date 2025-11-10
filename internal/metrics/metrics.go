@@ -179,3 +179,4 @@ type MetricsSnapshot struct {
 	DBQueriesTotal       int64
 	DBErrorsTotal        int64
 }
+

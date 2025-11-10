@@ -9,25 +9,104 @@
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh; color:#333;
+            min-height: 100vh; color:#111827;
         }
         .container { max-width: 1000px; margin: 0 auto; padding: 20px; }
-        .header { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:space-between; }
-        .header h1 { color:#2c3e50; font-size: 1.8em; }
-        .header .sub { color:#7f8c8d; font-size: 0.95em; }
+        .header { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 24px; margin-bottom: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); display:flex; align-items:center; justify-content:space-between; flex-wrap: wrap; gap: 15px; }
+        .header h1 { color:#111827; font-size: 1.8em; }
+        .header .sub { color:#6b7280; font-size: 0.95em; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
         .content-grid { display:grid; grid-template-columns: 1fr; gap: 20px; }
-        .card { background: rgba(255,255,255,0.95); border-radius: 15px; padding: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
-        .card h2 { color:#2c3e50; margin-bottom: 12px; font-size: 1.4em; }
-        .info { color:#7f8c8d; font-size: 0.95em; }
-        label { display:block; font-size: 13px; color: #555; margin-top: 8px; }
-        input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; margin-top: 6px; }
-        .btn { background:#3498db; color:#fff; padding:10px 16px; border:0; border-radius:8px; cursor:pointer; font-weight:600; }
-        .btn:hover { background:#2980b9; }
+        .card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 15px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .card h2 { color:#111827; margin-bottom: 12px; font-size: 1.4em; }
+        .info { color:#6b7280; font-size: 0.95em; }
+        label { display:block; font-size: 13px; color: #374151; margin-top: 8px; font-weight: 500; }
+        input { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; margin-top: 6px; font-size: 0.95em; transition: border-color 0.3s; background: #ffffff; }
+        input:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); }
+        .btn { background:#2563eb; color:#fff; padding:10px 16px; border:0; border-radius:8px; cursor:pointer; font-weight:600; transition: all 0.3s; }
+        .btn:hover { background:#1d4ed8; transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.15); }
+        .btn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
         .list { list-style:none; }
-        .payment-item { display:flex; justify-content:space-between; align-items:center; padding:12px; margin:10px 0; background:#f8f9fa; border-radius:10px; border-left:4px solid #f39c12; }
-        .payment-item.paid { border-left-color:#27ae60; }
-        .payment-item.overdue { border-left-color:#e74c3c; }
-        .muted { color:#7f8c8d; font-size: 0.9em; }
+        .payment-item { display:flex; justify-content:space-between; align-items:center; padding:12px; margin:10px 0; background:#ffffff; border: 1px solid #e5e7eb; border-radius:10px; border-left:4px solid #d97706; transition: transform 0.2s; }
+        .payment-item:hover { transform: translateX(3px); }
+        .payment-item.paid { border-left-color:#059669; }
+        .payment-item.overdue { border-left-color:#dc2626; }
+        .muted { color:#6b7280; font-size: 0.9em; }
+        
+        /* Toast Notification */
+        .toast { position: fixed; bottom: 20px; right: 20px; background: #111827; color: white; padding: 15px 20px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; display: none; animation: slideIn 0.3s ease; max-width: 350px; }
+        .toast.show { display: block; }
+        .toast.success { background: #059669; }
+        .toast.error { background: #dc2626; }
+        .toast.info { background: #2563eb; }
+        @keyframes slideIn { from { transform: translateX(400px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        
+        /* Loading Spinner */
+        .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid rgba(255,255,255,0.3); border-top-color: white; border-radius: 50%; animation: spin 0.6s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s ease;
+        }
+        .modal.show {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .modal-content {
+            background-color: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            animation: slideUp 0.3s ease;
+        }
+        .modal-content h2 {
+            color: #111827;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+        .close {
+            color: #9ca3af;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+        .close:hover {
+            color: #111827;
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        @keyframes slideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .header { flex-direction: column; text-align: center; }
+            .header > div:first-child { width: 100%; }
+            .header-actions { width: 100%; justify-content: center; }
+        }
     </style>
     </head>
 <body>
@@ -37,8 +116,13 @@
                 <h1>👋 Welcome, {{.Tenant.Name}}</h1>
                 <div class="sub">Unit: {{if .Tenant.Unit}}{{.Tenant.Unit.UnitCode}}{{else}}—{{end}} • Move-in: {{.Tenant.MoveInDate.Format "Jan 2, 2006"}}</div>
             </div>
-            <div>
-                <form method="post" action="/logout"><button class="btn" type="submit">Logout</button></form>
+            <div class="header-actions">
+                <button class="btn" onclick="openChangePasswordModal()" style="background: #6b7280;">
+                    Change Password
+                </button>
+                <form method="post" action="/logout" style="display: inline;">
+                    <button class="btn" type="submit">Logout</button>
+                </form>
             </div>
         </div>
 
@@ -47,7 +131,7 @@
                 <h2>Payments</h2>
                 <!-- Payment Type Filter -->
                 <div style="margin-bottom: 15px;">
-                    <label for="paymentFilter" style="display: block; margin-bottom: 8px; font-weight: bold; color: #2c3e50; font-size: 0.9em;">Filter by Payment Type:</label>
+                    <label for="paymentFilter" style="display: block; margin-bottom: 8px; font-weight: bold; color: #111827; font-size: 0.9em;">Filter by Payment Type:</label>
                     <select id="paymentFilter" onchange="filterPayments()" style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; font-size: 0.95em; width: 200px;">
                         <option value="rent" selected>Rent</option>
                         <option value="water_bill">Water Bill</option>
@@ -62,22 +146,46 @@
                     {{range .Payments}}
                     <li class="payment-item {{if .IsFullyPaid}}paid{{else if eq .GetUserFacingStatus "Overdue"}}overdue{{end}}" data-payment-label="{{.Label}}">
                         <div style="flex: 1;">
-                            <div><strong>{{.GetLabelDisplayName}}</strong> • <strong>{{.GetFormattedAmount}}</strong> • Due: {{.GetFormattedDueDate}}</div>
+                            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                <strong>{{.GetLabelDisplayName}}</strong>
+                                <span style="color: #9ca3af;">•</span>
+                                <strong>{{.GetFormattedAmount}}</strong>
+                                <span style="color: #9ca3af;">•</span>
+                                <span class="muted">Due: {{.GetFormattedDueDate}}</span>
+                            </div>
                             <div class="muted" style="margin-top: 5px;">
-                                <strong>Status:</strong> {{.GetUserFacingStatus}}
+                                <strong>Status:</strong> 
+                                <span style="color: {{if .IsFullyPaid}}#059669{{else if eq .GetUserFacingStatus "Overdue"}}#dc2626{{else if .HasPendingVerification}}#d97706{{else}}#6b7280{{end}};">
+                                    {{.GetUserFacingStatus}}
+                                </span>
                             </div>
                             {{if not .IsFullyPaid}}
                             <div style="margin-top: 8px; font-size: 0.9em;">
-                                <span style="color: #27ae60; margin-right: 15px;">
+                                <span style="color: #059669; margin-right: 15px;">
                                     Paid: <strong>{{.GetFormattedAmountPaid}}</strong>
                                 </span>
-                                <span style="color: #e74c3c;">
+                                <span style="color: #dc2626;">
                                     Remaining: <strong>{{.GetFormattedRemainingBalance}}</strong>
                                 </span>
                             </div>
                             {{end}}
+                            {{if .Transactions}}
+                            <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #e5e7eb;">
+                                <div style="font-size: 0.85em; color: #6b7280; margin-bottom: 4px;">
+                                    <strong>Transactions:</strong>
+                                </div>
+                                {{range .Transactions}}
+                                <div style="font-size: 0.8em; padding: 4px 8px; background: {{if .IsVerified}}#d1fae5{{else}}#fef3c7{{end}}; border-radius: 4px; margin-top: 4px; display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="font-family: monospace; color: #374151;">{{.TransactionID}}</span>
+                                    <span style="color: {{if .IsVerified}}#059669{{else}}#d97706{{end}}; font-weight: 600;">
+                                        {{if .IsVerified}}Verified{{else}}Pending{{end}}
+                                    </span>
+                                </div>
+                                {{end}}
+                            </div>
+                            {{end}}
                             {{if .IsFullyPaid}}
-                            <div style="margin-top: 5px; color: #27ae60;">
+                            <div style="margin-top: 5px; color: #059669;">
                                 ✅ Fully Paid {{if .FullyPaidDate}}on {{.FullyPaidDate.Format "Jan 2, 2006"}}{{end}}
                             </div>
                             {{end}}
@@ -89,28 +197,84 @@
                 <div class="muted">No payments to show yet.</div>
                 {{end}}
                 </div>
-                <form id="txnForm" method="post" action="/api/payments/submit">
-                    <label>Enter UPI Transaction ID *</label>
-                    <input name="txn_id" placeholder="e.g., 2349ABCD..." required />
-                    <label>Enter Amount (₹) *</label>
-                    <input name="amount" type="number" min="1" placeholder="e.g., 600" required />
-                    <button class="btn" type="submit">Submit Payment</button>
-                </form>
+                
+                <!-- Payment Instructions & UPI Info -->
+                {{if .UPIID}}
+                <div style="background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 12px; padding: 20px; margin: 20px 0; color: #111827;">
+                    <h3 style="margin: 0 0 15px 0; color: #111827; font-size: 1.2em; font-weight: 600;">Payment Instructions</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; align-items: start;">
+                        <div>
+                            <p style="margin: 0 0 10px 0; font-size: 0.95em; color: #374151;">
+                                <strong>Step 1:</strong> Pay to the owner's UPI ID
+                            </p>
+                            <div style="background: #ffffff; border: 1px solid #d1d5db; border-radius: 8px; padding: 12px; margin-bottom: 10px;">
+                                <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                    <strong style="font-size: 1.1em; word-break: break-all; color: #111827;">{{.UPIID}}</strong>
+                                    <button onclick="copyUPIID('{{.UPIID}}')" style="background: #2563eb; border: none; color: white; padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85em; white-space: nowrap;">
+                                        Copy
+                                    </button>
+                                </div>
+                            </div>
+                            <p style="margin: 10px 0 0 0; font-size: 0.9em; color: #6b7280;">
+                                <strong>Step 2:</strong> After payment, enter the Transaction ID below
+                            </p>
+                        </div>
+                        <div style="text-align: center;">
+                            <div style="background: white; padding: 15px; border-radius: 8px; display: inline-block; margin-bottom: 10px; border: 1px solid #e5e7eb;">
+                                <img src="/static/qrcode.png" alt="UPI QR Code" style="width: 150px; height: 150px; display: block;" />
+                            </div>
+                            <p style="margin: 0; font-size: 0.85em; color: #6b7280;">Scan to pay</p>
+                        </div>
+                    </div>
+                </div>
+                {{end}}
+                
+                <!-- Payment Form -->
+                <div style="border-top: 2px solid #e5e7eb; padding-top: 20px; margin-top: 20px;">
+                    <h3 style="color: #111827; margin-bottom: 15px; font-size: 1.1em; font-weight: 600;">Submit Payment Transaction</h3>
+                    <form id="txnForm" method="post" action="/api/payments/submit">
+                        <div style="margin-bottom: 15px;">
+                            <label style="font-weight: 600; color: #374151;">Transaction ID (from UPI app) *</label>
+                            <input name="txn_id" id="txn_id" placeholder="e.g., 2349ABCD1234..." required 
+                                   style="font-family: monospace; letter-spacing: 0.5px;" />
+                            <small style="color: #6b7280; font-size: 0.85em; display: block; margin-top: 4px;">
+                                Find this in your UPI app after making the payment
+                            </small>
+                        </div>
+                        <div style="margin-bottom: 15px;">
+                            <label style="font-weight: 600; color: #374151;">Amount Paid (₹) *</label>
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input name="amount" id="amount" type="number" min="1" placeholder="Enter amount" required 
+                                       style="flex: 1;" />
+                                <button type="button" onclick="fillRemainingBalance()" 
+                                        style="background: #059669; color: white; padding: 10px 16px; border: none; border-radius: 8px; cursor: pointer; font-size: 0.9em; white-space: nowrap;">
+                                    Use Remaining
+                                </button>
+                            </div>
+                            <small style="color: #6b7280; font-size: 0.85em; display: block; margin-top: 4px;">
+                                Enter the exact amount you paid
+                            </small>
+                        </div>
+                        <button class="btn" type="submit" style="width: 100%; padding: 12px; font-size: 1em;">
+                            <span id="submitBtnText">✅ Submit Payment</span>
+                        </button>
+                    </form>
+                </div>
             </div>
 
             <div class="card">
                 <h2>Family Members</h2>
-                <div class="info" style="margin-bottom: 12px; padding: 8px; background: #e8f4f8; border-radius: 6px; font-size: 0.9em;">
+                <div class="info" style="margin-bottom: 12px; padding: 8px; background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.9em;">
                     <strong>Capacity:</strong> {{.Tenant.NumberOfPeople}} total people ({{.MaxFamilyMembers}} family member{{if ne .MaxFamilyMembers 1}}s{{end}} allowed)
                     • <strong>Current:</strong> {{.CurrentFamilyCount}} family member{{if ne .CurrentFamilyCount 1}}s{{end}}
                     {{if .IsFamilyLimitReached}}
-                    <span style="color: #e74c3c; font-weight: bold;"> • Limit Reached</span>
+                    <span style="color: #dc2626; font-weight: bold;"> • Limit Reached</span>
                     {{end}}
                 </div>
                 {{if .Tenant.FamilyMembers}}
                 <ul class="list" style="margin-bottom: 15px;">
                     {{range .Tenant.FamilyMembers}}
-                    <li style="padding: 10px; margin: 8px 0; background: #f8f9fa; border-radius: 8px;">
+                    <li style="padding: 10px; margin: 8px 0; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 8px;">
                         <strong>{{.Name}}</strong> • {{.Relationship}} • Age: {{.Age}}
                         {{if .HasAadhar}}
                         <div class="muted" style="margin-top: 4px; font-size: 0.85em;">Aadhar: {{.AadharNumber}}</div>
@@ -122,8 +286,8 @@
                 <div class="muted" style="margin-bottom: 15px;">No family members added yet.</div>
                 {{end}}
                 {{if .IsFamilyLimitReached}}
-                <div style="padding: 12px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; margin-bottom: 15px;">
-                    <strong>⚠️ Limit Reached:</strong> You have reached the maximum number of family members ({{.Tenant.NumberOfPeople}} total people allowed).
+                <div style="padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; margin-bottom: 15px;">
+                    <strong>Limit Reached:</strong> You have reached the maximum number of family members ({{.Tenant.NumberOfPeople}} total people allowed).
                 </div>
                 {{else}}
                 <form id="familyMemberForm" onsubmit="return addFamilyMember(event)">
@@ -140,20 +304,109 @@
                 {{end}}
             </div>
 
-            <div class="card">
-                <h2>Change Password</h2>
-                <form id="changePassForm" onsubmit="return submitChangePassword(event)">
-                    <label>Old Password</label>
-                    <input id="oldPass" type="password" required />
-                    <label>New Password</label>
-                    <input id="newPass" type="password" minlength="6" required />
-                    <button class="btn" type="submit">Update Password</button>
-                </form>
-            </div>
+        </div>
+    </div>
+    
+    <!-- Change Password Modal -->
+    <div id="changePasswordModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeChangePasswordModal()">&times;</span>
+            <h2>Change Password</h2>
+            <form id="changePassForm" onsubmit="return submitChangePassword(event)">
+                <label>Old Password</label>
+                <input id="oldPass" type="password" required />
+                <label>New Password</label>
+                <input id="newPass" type="password" minlength="6" required />
+                <small style="color: #6b7280; font-size: 0.85em; display: block; margin-top: 4px;">
+                    Password must be at least 6 characters long
+                </small>
+                <div style="display: flex; gap: 10px; margin-top: 20px;">
+                    <button class="btn" type="submit" style="flex: 1;">Update Password</button>
+                    <button type="button" class="btn" onclick="closeChangePasswordModal()" style="background: #6b7280; flex: 1;">Cancel</button>
+                </div>
+            </form>
         </div>
     </div>
 
     <script>
+    // Toast notification function
+    function showToast(message, type = 'info') {
+        const toast = document.getElementById('toast');
+        toast.className = `toast ${type} show`;
+        toast.textContent = message;
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 4000);
+    }
+    
+    // Copy UPI ID to clipboard
+    function copyUPIID(upiID) {
+        navigator.clipboard.writeText(upiID).then(() => {
+            showToast('UPI ID copied to clipboard!', 'success');
+        }).catch(() => {
+            // Fallback for older browsers
+            const textarea = document.createElement('textarea');
+            textarea.value = upiID;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('UPI ID copied to clipboard!', 'success');
+        });
+    }
+    
+    // Fill remaining balance in amount field
+    function fillRemainingBalance() {
+        // Get all payment items from DOM
+        const paymentItems = document.querySelectorAll('.payment-item[data-payment-label]');
+        if (!paymentItems || paymentItems.length === 0) {
+            showToast('No pending payments found', 'error');
+            return;
+        }
+        
+        // Find first unpaid payment by checking the DOM
+        let unpaidPayment = null;
+        for (let item of paymentItems) {
+            if (!item.classList.contains('paid')) {
+                // Extract remaining balance from the payment item
+                const remainingText = item.querySelector('span[style*="color: #dc2626"]');
+                if (remainingText) {
+                    const remainingMatch = remainingText.textContent.match(/₹(\d+)/);
+                    if (remainingMatch) {
+                        const remaining = parseInt(remainingMatch[1]);
+                        if (remaining > 0) {
+                            document.getElementById('amount').value = remaining;
+                            showToast(`Filled remaining balance: ₹${remaining}`, 'success');
+                            return;
+                        }
+                    }
+                }
+            }
+        }
+        
+        if (!unpaidPayment) {
+            showToast('All payments are fully paid!', 'info');
+        }
+    }
+    
+    // Modal functions
+    function openChangePasswordModal() {
+        document.getElementById('changePasswordModal').classList.add('show');
+    }
+    
+    function closeChangePasswordModal() {
+        document.getElementById('changePasswordModal').classList.remove('show');
+        document.getElementById('changePassForm').reset();
+    }
+    
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+        const modal = document.getElementById('changePasswordModal');
+        if (event.target == modal) {
+            closeChangePasswordModal();
+        }
+    }
+    
     // Payment filtering function
     function filterPayments() {
         const filter = document.getElementById('paymentFilter').value;
@@ -210,14 +463,15 @@
         })
         .then(data => {
             if (data && data.success) {
-                alert('Password updated successfully! Please use the new password next time.');
+                showToast('✅ Password updated successfully!', 'success');
                 document.getElementById('changePassForm').reset();
+                setTimeout(() => closeChangePasswordModal(), 1500);
             } else {
-                alert('Failed to update password: ' + (data?.error || 'Unknown error'));
+                showToast('❌ ' + (data?.error || 'Failed to update password'), 'error');
             }
         })
         .catch(error => {
-            alert('Error: ' + error.message);
+            showToast('❌ Error: ' + error.message, 'error');
         });
         return false;
     }
@@ -229,7 +483,11 @@
         f.addEventListener('submit', function(e){
             e.preventDefault();
             const btn = f.querySelector('button[type=submit]');
-            if (btn) btn.disabled = true;
+            const btnText = document.getElementById('submitBtnText');
+            if (btn) {
+                btn.disabled = true;
+                if (btnText) btnText.innerHTML = '<span class="spinner"></span> Submitting...';
+            }
             const data = new URLSearchParams(new FormData(f));
             fetch('/api/payments/submit', {
                 method: 'POST',
@@ -240,16 +498,16 @@
                 
                 // Handle successful submission (204 No Content)
                 if (r.status === 204) { 
-                    alert('Transaction ID submitted successfully! Owner will verify the amount and update your payment.'); 
+                    showToast('✅ Transaction submitted! Owner will verify and update your payment.', 'success');
                     f.reset();
-                    location.reload(); 
+                    setTimeout(() => location.reload(), 1500);
                     return; 
                 }
                 
                 // Check for redirects (session expired)
                 if (r.redirected || r.status === 401 || r.status === 403) {
-                    alert('Session expired. Please login again.');
-                    window.location.href = '/login';
+                    showToast('Session expired. Please login again.', 'error');
+                    setTimeout(() => window.location.href = '/login', 2000);
                     return;
                 }
                 
@@ -257,9 +515,9 @@
                 if (contentType && contentType.includes('application/json')) {
                     return r.json().then(data => {
                         if (data.success) {
-                            alert('Transaction ID submitted successfully!');
+                            showToast('✅ Transaction submitted successfully!', 'success');
                             f.reset();
-                            location.reload();
+                            setTimeout(() => location.reload(), 1500);
                         } else {
                             throw new Error(data.error || data.message || 'Unknown error');
                         }
@@ -275,8 +533,11 @@
                     throw new Error(text.substring(0, 200) || 'Failed to submit transaction');
                 });
             }).catch(err=>{
-                alert('Failed to submit: ' + err.message);
-                if (btn) btn.disabled = false;
+                showToast('❌ ' + err.message, 'error');
+                if (btn) {
+                    btn.disabled = false;
+                    document.getElementById('submitBtnText').textContent = '✅ Submit Payment';
+                }
             });
         });
     })();
@@ -297,16 +558,19 @@
             }
             return r.json();
         }).then(_=>{
-            alert('Family member added successfully!');
+            showToast('✅ Family member added successfully!', 'success');
             form.reset();
-            location.reload();
+            setTimeout(() => location.reload(), 1500);
         }).catch(err=>{
-            alert('Failed to add family member: ' + err.message);
+            showToast('❌ ' + err.message, 'error');
             if (btn) btn.disabled = false;
         });
         return false;
     }
     </script>
+    
+    <!-- Toast Notification Container -->
+    <div id="toast" class="toast"></div>
 </body>
 </html>
 
